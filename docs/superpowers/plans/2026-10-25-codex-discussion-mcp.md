@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
-**Goal:** 외부 코딩 에이전트가 모델/effort를 선택해 Codex와 지속적인 토론을 수행하는 npm 설치형 MCP를 구현한다.
+**Goal:** Implement an npm-installable MCP server that lets external coding agents select a model and effort level for ongoing discussions with Codex.
 
-**Architecture:** stdio MCP 서버가 전용 Codex app-server 자식 프로세스를 소유한다. JSONL RPC 클라이언트, 모델 카탈로그, 토론 서비스와 MCP 등록을 분리한다. Codex에 이력을 저장하고 실행 중 공개 메시지를 메모리에 유지한다.
+**Architecture:** The stdio MCP server owns a dedicated Codex app-server child process. Separate the JSONL RPC client, model catalog, discussion service, and MCP registration. Persist history in Codex and keep public messages in memory while the server runs.
 
 **Tech Stack:** Node.js >=22.14, TypeScript, MCP SDK v2 with legacy host support, Zod 4, node:test + tsx, npm, GitHub Actions.
 

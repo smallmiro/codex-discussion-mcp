@@ -1,77 +1,84 @@
-# GitHub Actions → npm 공개 배포
+# Public npm publishing through GitHub Actions
 
-`0.1.0` 첫 공개 게시를 완료했습니다. [릴리스 기록](releases/0.1.0.md)
-이 버전의 bootstrap 게시를 다시 실행하지 말고, 다음 버전부터 아래 OIDC 연결을 준비하세요.
+The first public release, `0.1.0`, has been published. See the
+[release record](releases/0.1.0.md). Do not rerun bootstrap publishing for this
+version. Set up the OIDC connection below for subsequent versions.
 
 - GitHub: `smallmiro/codex-discussion-mcp`
-- npm 조직: `mirolab`
-- 패키지: `@mirolab/codex-discussion-mcp`
-- 라이선스: MIT
-- 게시 워크플로: `.github/workflows/publish.yml`
-- 첫 게시 토큰 워크플로: `.github/workflows/bootstrap-publish.yml`
+- npm organization: `mirolab`
+- Package: `@mirolab/codex-discussion-mcp`
+- License: MIT
+- Publishing workflow: `.github/workflows/publish.yml`
+- Initial token-based publishing workflow: `.github/workflows/bootstrap-publish.yml`
 
-빌드와 검증은 GitHub-hosted runner에서 실행합니다. 정규 배포는 npm Trusted
-Publishing(OIDC)을 사용하며 저장소에 `NPM_TOKEN`을 등록할 필요가 없습니다.
-npm 조직의 게시 권한은 조직에 속한 개인 npm 계정으로 행사합니다.
+Builds and validation run on GitHub-hosted runners. Regular releases use npm
+Trusted Publishing (OIDC), so the repository does not need an `NPM_TOKEN` secret.
+An individual npm account belonging to the organization exercises its publishing
+permissions.
 
-## CI와 패키지 받기
+## CI and package downloads
 
-`main` 푸시, PR, 수동 실행에서 `CI` 워크플로가 Node.js 22와 24로 검증합니다.
-Node.js 24 작업은 빌드된 `.tgz`를 `npm-package` artifact로 올립니다.
+The `CI` workflow validates on Node.js 22 and 24 for pushes to `main`, pull
+requests, and manual runs. The Node.js 24 job uploads the built `.tgz` as the
+`npm-package` artifact.
 
-GitHub 저장소의 Actions → CI → 성공한 실행 → Artifacts에서 다운로드하세요.
-CLI로 받을 수도 있습니다.
+Download it from the GitHub repository under Actions → CI → a successful run →
+Artifacts. You can also use the CLI:
 
 ```bash
 gh run list --repo smallmiro/codex-discussion-mcp --workflow ci.yml --branch main --status success
 gh run download RUN_ID --repo smallmiro/codex-discussion-mcp --name npm-package --dir release-artifacts
 ```
 
-`RUN_ID`는 위 목록의 실제 실행 ID로 바꿉니다. 다운로드한 패키지는 npm 게시 전에도
-로컬에 설치해 확인할 수 있습니다.
+Replace `RUN_ID` with an actual run ID from the list. You can install the
+downloaded package locally to check it even before it is published to npm.
 
 ```bash
 npm install -g ./release-artifacts/mirolab-codex-discussion-mcp-0.1.0.tgz
 codex-discussion-mcp --help
 ```
 
-## 첫 게시
+## Initial publishing
 
-첫 버전은 GitHub Actions에 npm 게시 토큰을 등록해 빌드와 게시를 모두 실행하거나,
-GitHub에서 빌드한 tarball을 로그인된 사용자 터미널에서 게시할 수 있습니다.
-이후에는 패키지 설정에서 Trusted Publishing을 연결합니다.
+For the first version, you can register an npm publishing token in GitHub
+Actions to build and publish there, or publish a tarball built by GitHub from a
+signed-in user terminal. Afterward, configure Trusted Publishing in the package
+settings.
 
-### GitHub Secret으로 첫 게시
+### Initial publishing with a GitHub Secret
 
-1. npm 프로필 메뉴 → Access Tokens → Generate New Token에서 granular token을 생성합니다.
-2. Packages and scopes의 Permissions를 **Read and write (publish and stage)**로 설정하고,
-   Only select packages and scopes에서 **`@mirolab` scope**를 선택합니다.
-3. 자동 게시에 사용할 **Bypass two-factor authentication**을 활성화하고 짧은 만료일을 지정합니다.
-4. Organizations의 관리 권한은 패키지 게시 권한과 별개입니다. 조직 관리 권한은 필요하지 않습니다.
-5. GitHub 저장소의 Settings → Secrets and variables → Actions → New repository secret에
-   이름 `NPM_TOKEN`, 값은 발급한 토큰을 입력합니다. 토큰을 채팅이나 소스에 넣지 않습니다.
-6. Actions → **Bootstrap npm package (token)** → Run workflow에서 `main`, version `0.1.0`으로 실행합니다.
+1. In the npm profile menu → Access Tokens → Generate New Token, create a granular token.
+2. Under Packages and scopes, set Permissions to **Read and write (publish and stage)**,
+   then select the **`@mirolab` scope** under Only select packages and scopes.
+3. Enable **Bypass two-factor authentication** for automated publishing and set a short expiration.
+4. Organization administration permissions are separate from package publishing permissions. Organization administration access is not required.
+5. In the GitHub repository, go to Settings → Secrets and variables → Actions → New repository secret.
+   Use `NPM_TOKEN` as the name and the issued token as the value. Do not put the token in chat or source code.
+6. Under Actions → **Bootstrap npm package (token)** → Run workflow, select `main` and version `0.1.0`.
 
-토큰 발급 시 npm이 요구하는 본인 인증은 직접 완료해야 합니다. 이 워크플로는
-OIDC 권한을 요청하지 않고 게시 단계에만 토큰을 전달합니다. 테스트와 빌드, tarball 설치
-검증을 통과한 동일 `.tgz`를 공개 게시합니다. CLI로 실행할 수도 있습니다.
+You must complete any identity verification npm requires when issuing the token.
+This workflow does not request OIDC permissions and passes the token only to the
+publishing step. It publicly publishes the same `.tgz` that passed tests, build,
+and tarball installation validation. You can also start it with the CLI:
 
 ```bash
 gh workflow run bootstrap-publish.yml --repo smallmiro/codex-discussion-mcp --ref main -f version=0.1.0
 ```
 
-npm은 2FA 우회 토큰의 직접 게시를 2027년 1월부터 제한할 계획이라고 안내하고 있습니다.
-첫 게시 후 OIDC 연결을 검증하면 이 bootstrap 토큰과 GitHub Secret을 제거합니다.
-[npm 토큰 설정](https://docs.npmjs.com/creating-and-viewing-access-tokens/) ·
-[정책 변경 공지](https://github.blog/changelog/2026-07-31-restricting-npm-bypass-2fa-granular-access-tokens/)
+npm has announced plans to restrict direct publishing with 2FA bypass tokens
+starting in January 2027. After the initial publication and verification of the
+OIDC connection, remove the bootstrap token and GitHub Secret.
+[npm token settings](https://docs.npmjs.com/creating-and-viewing-access-tokens/) ·
+[Policy change announcement](https://github.blog/changelog/2026-07-31-restricting-npm-bypass-2fa-granular-access-tokens/)
 
-### 사용자 터미널에서 직접 첫 게시
+### Initial publishing directly from a user terminal
 
-먼저 해당 개인 npm 계정에서 **2FA를 활성화**하세요. 로그인과 조직 owner 권한이
-있어도 2FA가 비활성화되어 있으면 직접 게시가 `E403`으로 거절됩니다.
-npm 프로필 메뉴 → Account → Two-Factor Authentication → Enable 2FA에서
-설정하고, 게시 시 나타나는 인증 절차를 브라우저에서 완료합니다.
-[npm 2FA 설정 안내](https://docs.npmjs.com/configuring-two-factor-authentication/)
+First, **enable 2FA** on the individual npm account. Even if you are signed in
+and have organization owner permissions, direct publishing is rejected with
+`E403` when 2FA is disabled. Enable it under the npm profile menu → Account →
+Two-Factor Authentication → Enable 2FA, then complete the browser authentication
+prompt when publishing.
+[npm 2FA setup guide](https://docs.npmjs.com/configuring-two-factor-authentication/)
 
 ```bash
 npm login --registry=https://registry.npmjs.org/
@@ -79,46 +86,50 @@ npm whoami --registry=https://registry.npmjs.org/
 npm publish ./release-artifacts/mirolab-codex-discussion-mcp-0.1.0.tgz --access public
 ```
 
-로그인한 사용자 이름이 조직 이름과 같을 필요는 없습니다. 해당 사용자가
-`mirolab` 조직에 패키지를 게시할 권한이 있어야 합니다. npm의 웹 로그인과
-2FA 인증은 사용자 본인이 진행합니다. 비밀번호, 토큰, OTP를 저장소나 채팅에
-복사할 필요는 없습니다.
+The signed-in username does not need to match the organization name. The user
+must have permission to publish packages in the `mirolab` organization. The user
+completes npm web login and 2FA authentication directly. There is no need to copy
+passwords, tokens, or OTPs into the repository or chat.
 
-게시 후 실제 공개 패키지와 버전을 확인합니다.
+After publishing, verify the public package and version:
 
 ```bash
 npm view @mirolab/codex-discussion-mcp version --registry=https://registry.npmjs.org/
 ```
 
-이미 게시한 버전은 다시 게시할 수 없습니다. 최초 `0.1.0`을 수동 게시한 뒤
-같은 버전의 GitHub Release로 게시 워크플로를 실행하지 마세요.
+An already published version cannot be published again. After manually
+publishing the initial `0.1.0`, do not trigger the publishing workflow through a
+GitHub Release for the same version.
 
-## npm Trusted Publisher 연결
+## Configure the npm Trusted Publisher
 
-패키지의 npm Settings → Trusted publishing에서 GitHub Actions를 추가합니다.
+Add GitHub Actions under the package's npm Settings → Trusted publishing.
 
-| 필드 | 값 |
+| Field | Value |
 |---|---|
 | Organization or user | `smallmiro` |
 | Repository | `codex-discussion-mcp` |
 | Workflow filename | `publish.yml` |
-| Environment name | 비워두기 |
-| Allowed actions | 직접 배포하려면 `npm publish` 허용 |
+| Environment name | Leave blank |
+| Allowed actions | Allow `npm publish` for direct publishing |
 
-Organization or user에는 **GitHub 소유자인 `smallmiro`**를 입력합니다.
-npm 조직명 `mirolab`과 구분하세요. 워크플로 파일 이름은 경로 전체가 아닌
-`publish.yml`이며, 실제 워크플로 이름과 대소문자가 일치해야 합니다.
+Enter **`smallmiro`, the GitHub owner**, in Organization or user. This is distinct
+from the npm organization name, `mirolab`. Use `publish.yml` as the workflow
+filename, rather than its full path. It must match the actual workflow filename,
+including case.
 
-현재 워크플로는 GitHub Environment를 사용하지 않습니다. npm 설정에 Environment를
-입력하려면 워크플로의 `environment`도 동일하게 변경해야 합니다.
+The current workflow does not use a GitHub Environment. If you specify an
+Environment in the npm settings, update the workflow's `environment` to match.
 
-새 Trusted Publisher는 생성 후 2일 안에 첫 게시에 성공해야 합니다. 다음 버전을
-배포할 준비가 되었을 때 연결하세요. 만료되면 삭제 후 새로 추가합니다.
+A new Trusted Publisher must successfully publish for the first time within 2
+days of creation. Configure it when you are ready to release the next version.
+If it expires, delete it and add it again.
 
-## 이후 버전 게시
+## Publishing subsequent versions
 
-버전 변경과 태그를 저장소에 반영하고, **패키지 버전과 같은 `v` 태그**로
-GitHub Release를 게시합니다. 예를 들어 다음 버전이 `0.1.1`이면 태그는 `v0.1.1`입니다.
+Commit the version change and tag to the repository, then publish a GitHub
+Release using a **`v` tag matching the package version**. For example, if the next
+version is `0.1.1`, use the tag `v0.1.1`.
 
 ```bash
 npm version patch
@@ -126,14 +137,16 @@ git push origin main --follow-tags
 gh release create v0.1.1 --repo smallmiro/codex-discussion-mcp --generate-notes
 ```
 
-워크플로는 해당 태그를 체크아웃하고 이름/버전 검사, 테스트, 빌드, tarball 설치
-검증을 모두 통과한 **동일 tarball**을 `npm publish --access public`로 게시합니다.
-게시 작업에만 `id-token: write`를 부여합니다. 실패한 미게시 버전은 Actions의
-`Publish npm package`를 수동 실행하고 기존 태그를 입력해 다시 시도할 수 있습니다.
+The workflow checks out the tag, validates the name and version, runs tests,
+builds, and validates tarball installation. It then publishes the **same tarball**
+using `npm publish --access public`. Only the publishing job receives
+`id-token: write`. To retry a failed version that has not been published, manually
+run `Publish npm package` in Actions and supply the existing tag.
 
-npm 계정 설정이 완료되기 전에도 CI의 빌드와 artifact 다운로드는 사용할 수 있습니다.
+CI builds and artifact downloads are available even before npm account setup is
+complete.
 
-## 로컬 게시 전 검증
+## Local validation before publishing
 
 ```bash
 npm ci
@@ -142,7 +155,7 @@ npm run verify:package
 npm pack --dry-run
 ```
 
-공식 참고:
+Official references:
 
 - [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)
-- [npm 공개 scoped 패키지 게시](https://docs.npmjs.com/creating-and-publishing-scoped-public-packages/)
+- [Publishing public scoped npm packages](https://docs.npmjs.com/creating-and-publishing-scoped-public-packages/)
