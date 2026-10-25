@@ -19,8 +19,7 @@ test('start returns the chosen settings and retains completion before RPC respon
   assert.equal(start.params.approvalPolicy, 'never');
   assert.deepEqual(start.params.config, {
     'features.apps': false, 'features.plugins': false,
-    'mcp_servers."discussion.recursive".enabled': false,
-    'mcp_servers."other".enabled': false,
+    mcp_servers: { 'discussion.recursive': { enabled: false }, other: { enabled: false } },
   });
   const turn = requests.find(request => request.method === 'turn/start')!;
   assert.equal(turn.params.model, 'alpha');
@@ -138,6 +137,19 @@ test('process loss marks active turns connectionLost without replay', async t =>
   assert.ok(result.error);
 });
 
+test('successful completion clears a transient inference error', async t => {
+  const { service, rpc } = discussionClient(t);
+  const first = await service.start({ message: 'hold' });
+  await rpc.request('test/event', { method: 'error', params: {
+    threadId: first.discussionId, turnId: first.turnId,
+    error: { message: 'Transient provider issue' }, willRetry: true,
+  } });
+  await rpc.request('test/complete', { threadId: first.discussionId });
+  const read = await service.read({ discussionId: first.discussionId });
+  assert.equal(read.status, 'completed');
+  assert.equal(read.error, undefined);
+});
+
 test('cancel targets the specified turn and preserves completed older turns', async t => {
   const { service } = discussionClient(t);
   const first = await service.start({ message: 'early' });
@@ -168,6 +180,7 @@ test('resume restores thread defaults and reads persisted public history only', 
   assert.equal(next.effort, 'high');
   const requests = await rpc.request<Array<{ method: string; params: Record<string, unknown> }>>('test/requests', {});
   assert.equal(requests.find(request => request.method === 'thread/resume')?.params.sandbox, 'read-only');
+  assert.equal(requests.find(request => request.method === 'thread/turns/list')?.params.itemsView, 'notLoaded');
 });
 
 test('invalid project directory or unknown turn is rejected explicitly', async t => {

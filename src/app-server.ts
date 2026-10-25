@@ -50,7 +50,7 @@ export class AppServer implements RpcClient {
   private async initialize() {
     this.child = spawn(
       this.options.command ?? 'codex',
-      this.options.args ?? ['app-server', '--listen', 'stdio://'],
+      this.options.args ?? ['app-server', '--listen', 'stdio://', '-c', 'features.plugins=false', '-c', 'features.apps=false'],
       { cwd: this.options.cwd, stdio: ['pipe', 'pipe', 'pipe'], shell: false, windowsHide: true },
     );
     this.child.stdout.on('data', (chunk: Buffer) => this.receive(chunk));

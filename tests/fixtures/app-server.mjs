@@ -70,6 +70,10 @@ createInterface({ input: process.stdin }).on('line', async line => {
   } else if (method === 'model/list') {
     reply(id, { data: params.cursor ? [beta] : [alpha], nextCursor: params.cursor ? null : 'page-2' });
   } else if (method === 'thread/start') {
+    if (Object.keys(params.config ?? {}).some(key => key.startsWith('mcp_servers."'))) {
+      send({ id, error: { code: -32600, message: 'failed to load configuration: invalid transport in quoted MCP server key' } });
+      return;
+    }
     const threadId = `thread-${Object.keys(threads).length + 1}`;
     const thread = { id: threadId, cwd: params.cwd, model: params.model, reasoningEffort: null, modelProvider: 'fixture', status: { type: 'idle' }, turns: [] };
     threads[threadId] = thread;
@@ -109,6 +113,10 @@ createInterface({ input: process.stdin }).on('line', async line => {
     if (turn && turn.status === 'inProgress') complete(thread, turn, 'interrupted', 'Interrupted');
     reply(id, {});
   } else if (method === 'thread/turns/list') {
+    if (params.itemsView && !['notLoaded', 'summary', 'full'].includes(params.itemsView)) {
+      send({ id, error: { code: -32600, message: 'Invalid request: itemsView must be notLoaded, summary or full' } });
+      return;
+    }
     const thread = threads[params.threadId];
     const start = Number(params.cursor ?? 0);
     const turns = thread.turns.toReversed();

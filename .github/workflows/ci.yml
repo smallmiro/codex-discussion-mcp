@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'feat/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: ['22', '24']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      - run: npm run check
+      - run: npm run verify:package
+      - name: Pack release candidate
+        if: matrix.node == '24'
+        run: mkdir -p artifacts && npm pack --ignore-scripts --pack-destination artifacts
+      - uses: actions/upload-artifact@v7
+        if: matrix.node == '24'
+        with:
+          name: npm-package
+          path: artifacts/*.tgz
+          if-no-files-found: error

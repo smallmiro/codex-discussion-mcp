@@ -198,7 +198,7 @@ export class DiscussionService {
     const seen = new Set<string>();
     do {
       const page = record(await this.rpc.request('thread/turns/list', {
-        threadId: state.id, limit: turnId ? 100 : 1, itemsView: 'none', sortDirection: 'desc', ...(cursor ? { cursor } : {}),
+        threadId: state.id, limit: turnId ? 100 : 1, itemsView: 'notLoaded', sortDirection: 'desc', ...(cursor ? { cursor } : {}),
       }));
       if (!Array.isArray(page.data)) throw new DiscussionError('PROTOCOL_ERROR', 'Invalid turn history response.');
       for (const value of page.data) {
@@ -235,7 +235,9 @@ export class DiscussionService {
     const result = record(await this.rpc.request('config/read', { cwd, includeLayers: false }));
     const servers = record(record(result.config).mcp_servers);
     const config: Record<string, unknown> = { 'features.apps': false, 'features.plugins': false };
-    for (const name of Object.keys(servers)) config[`mcp_servers.${JSON.stringify(name)}.enabled`] = false;
+    // Use a partial nested table: quoted dotted keys are interpreted literally by app-server.
+    // Copy only enabled=false, never the resolved server credentials or nullable config fields.
+    config.mcp_servers = Object.fromEntries(Object.keys(servers).map(name => [name, { enabled: false }]));
     return config;
   }
 
@@ -255,7 +257,7 @@ export class DiscussionService {
     if (!turn) return;
     if (method === 'turn/completed') {
       turn.status = statusOf(raw.status);
-      if (raw.error) turn.error = { code: 'INFERENCE_ERROR', message: String(record(raw.error).message ?? 'Codex turn failed') };
+      turn.error = raw.error ? { code: 'INFERENCE_ERROR', message: String(record(raw.error).message ?? 'Codex turn failed') } : undefined;
       if (Array.isArray(raw.items)) for (const item of raw.items) this.ingest(turn, item, true);
     } else if (method === 'item/agentMessage/delta' && typeof params.itemId === 'string' && typeof params.delta === 'string') {
       const previous = turn.messages.get(params.itemId);

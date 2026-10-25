@@ -1,0 +1,58 @@
+name: Publish npm package
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag, for example v0.1.0'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org/'
+      - name: Verify release tag matches package version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+          if (process.env.RELEASE_TAG !== `v${pkg.version}`) throw new Error('Tag must exactly match v + package.json version');
+          if (pkg.name !== '@mirolab/codex-discussion-mcp') throw new Error('Unexpected package name');
+          JS
+      - run: npm install --global npm@11
+      - run: npm ci
+      - run: npm run check
+      - name: Pack and verify the exact artifact
+        run: |
+          mkdir -p artifacts
+          npm pack --ignore-scripts --pack-destination artifacts
+          npm run verify:package -- --tarball "$(find artifacts -name '*.tgz' -print -quit)"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: published-npm-package
+          path: artifacts/*.tgz
+          if-no-files-found: error
+      - name: Publish using npm trusted publishing (OIDC)
+        run: npm publish artifacts/*.tgz --access public
