@@ -45,13 +45,13 @@ try {
       }
       throw new Error('Live inference exceeded 180 seconds.');
     };
-    active = await call('discussion_start', { message: '짧은 연결 테스트입니다. 도구나 파일을 사용하지 말고 정확히 MCP 연결 확인 이라고만 답하세요.', model: model.model, effort, cwd: project });
+    active = await call('discussion_start', { message: 'This is a short connection test. Do not use tools or files. Reply with exactly: MCP connection confirmed', model: model.model, effort, cwd: project });
     console.log(JSON.stringify({ step: 'turn-started', ...active }));
     await wait(active);
     const nextModel = listed.models.find(candidate => candidate.model !== model.model && /fast|affordable|efficient/i.test(candidate.description)) ?? model;
     active = await call('discussion_reply', {
       discussionId: active.discussionId,
-      message: '이 대화의 직전 답변을 그대로 한 번 더 적어주세요. 도구나 파일을 사용하지 마세요.',
+      message: 'Repeat your previous reply in this discussion exactly once more. Do not use tools or files.',
       model: nextModel.model, effort: nextModel.defaultReasoningEffort,
     });
     await wait(active);
