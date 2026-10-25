@@ -1,0 +1,59 @@
+name: Bootstrap npm package (token)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Expected package.json version to publish'
+        required: true
+        default: '0.1.0'
+        type: string
+
+# No id-token permission: this one-time path authenticates with NPM_TOKEN.
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org/'
+      - name: Check publishing token is configured
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: node -e "if (!process.env.NODE_AUTH_TOKEN) throw new Error('Add the NPM_TOKEN repository Actions secret before running this workflow')"
+      - name: Check package identity and requested version
+        env:
+          PACKAGE_VERSION: ${{ inputs.version }}
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+          if (pkg.name !== '@mirolab/codex-discussion-mcp') throw new Error('Unexpected package name');
+          if (pkg.version !== process.env.PACKAGE_VERSION) throw new Error('Requested version must match package.json');
+          JS
+      - run: npm install --global npm@11
+      - run: npm ci
+      - run: npm run check
+      - name: Pack and verify the exact artifact
+        run: |
+          mkdir -p artifacts
+          npm pack --ignore-scripts --pack-destination artifacts
+          npm run verify:package -- --tarball "$(find artifacts -name '*.tgz' -print -quit)"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bootstrap-npm-package
+          path: artifacts/*.tgz
+          if-no-files-found: error
+      - name: Publish public package using the bootstrap token
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish ./artifacts/*.tgz --access public --registry=https://registry.npmjs.org/

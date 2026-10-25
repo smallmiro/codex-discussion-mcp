@@ -10,10 +10,10 @@ Claude Code, Antigravity CLI, Kiro CLI 등에서 **Codex를 독립적인 토론 
 - Codex가 저장한 대화 ID로 후속 세션에서 재개
 - 읽기 전용 프로젝트 탐색과 공개 발언 전달
 
-**배포 상태:** 첫 npm 게시 전입니다. 아래 npm 레지스트리 설치 명령은
-`@mirolab/codex-discussion-mcp@0.1.0` 게시 후 사용할 수 있습니다.
-게시 전에는 GitHub Actions의 `npm-package` artifact에 포함된 `.tgz`를 설치하거나
-로컬에서 빌드해 사용할 수 있습니다. [게시 절차](docs/publishing.md)
+패키지 이름은 `@mirolab/codex-discussion-mcp`입니다. npm에 게시된 버전은 아래
+설치 명령으로 사용합니다. 게시 전 버전은 GitHub Actions의 `npm-package`
+artifact에 포함된 `.tgz`를 설치하거나 로컬에서 빌드해 사용할 수 있습니다.
+[게시 절차](docs/publishing.md)
 
 ## 실행 환경
 

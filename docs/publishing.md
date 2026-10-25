@@ -5,6 +5,7 @@
 - 패키지: `@mirolab/codex-discussion-mcp`
 - 라이선스: MIT
 - 게시 워크플로: `.github/workflows/publish.yml`
+- 첫 게시 토큰 워크플로: `.github/workflows/bootstrap-publish.yml`
 
 빌드와 검증은 GitHub-hosted runner에서 실행합니다. 정규 배포는 npm Trusted
 Publishing(OIDC)을 사용하며 저장소에 `NPM_TOKEN`을 등록할 필요가 없습니다.
@@ -33,9 +34,35 @@ codex-discussion-mcp --help
 
 ## 첫 게시
 
-이 프로젝트는 첫 버전을 GitHub에서 빌드한 뒤, `mirolab` 조직에 게시 권한이 있는
-사용자가 그 tarball을 게시하는 절차를 사용합니다. 이후 패키지 설정에서
-Trusted Publishing을 연결합니다.
+첫 버전은 GitHub Actions에 npm 게시 토큰을 등록해 빌드와 게시를 모두 실행하거나,
+GitHub에서 빌드한 tarball을 로그인된 사용자 터미널에서 게시할 수 있습니다.
+이후에는 패키지 설정에서 Trusted Publishing을 연결합니다.
+
+### GitHub Secret으로 첫 게시
+
+1. npm 프로필 메뉴 → Access Tokens → Generate New Token에서 granular token을 생성합니다.
+2. Packages and scopes의 Permissions를 **Read and write (publish and stage)**로 설정하고,
+   Only select packages and scopes에서 **`@mirolab` scope**를 선택합니다.
+3. 자동 게시에 사용할 **Bypass two-factor authentication**을 활성화하고 짧은 만료일을 지정합니다.
+4. Organizations의 관리 권한은 패키지 게시 권한과 별개입니다. 조직 관리 권한은 필요하지 않습니다.
+5. GitHub 저장소의 Settings → Secrets and variables → Actions → New repository secret에
+   이름 `NPM_TOKEN`, 값은 발급한 토큰을 입력합니다. 토큰을 채팅이나 소스에 넣지 않습니다.
+6. Actions → **Bootstrap npm package (token)** → Run workflow에서 `main`, version `0.1.0`으로 실행합니다.
+
+토큰 발급 시 npm이 요구하는 본인 인증은 직접 완료해야 합니다. 이 워크플로는
+OIDC 권한을 요청하지 않고 게시 단계에만 토큰을 전달합니다. 테스트와 빌드, tarball 설치
+검증을 통과한 동일 `.tgz`를 공개 게시합니다. CLI로 실행할 수도 있습니다.
+
+```bash
+gh workflow run bootstrap-publish.yml --repo smallmiro/codex-discussion-mcp --ref main -f version=0.1.0
+```
+
+npm은 2FA 우회 토큰의 직접 게시를 2027년 1월부터 제한할 계획이라고 안내하고 있습니다.
+첫 게시 후 OIDC 연결을 검증하면 이 bootstrap 토큰과 GitHub Secret을 제거합니다.
+[npm 토큰 설정](https://docs.npmjs.com/creating-and-viewing-access-tokens/) ·
+[정책 변경 공지](https://github.blog/changelog/2026-07-31-restricting-npm-bypass-2fa-granular-access-tokens/)
+
+### 사용자 터미널에서 직접 첫 게시
 
 먼저 해당 개인 npm 계정에서 **2FA를 활성화**하세요. 로그인과 조직 owner 권한이
 있어도 2FA가 비활성화되어 있으면 직접 게시가 `E403`으로 거절됩니다.
