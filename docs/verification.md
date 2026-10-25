@@ -11,7 +11,11 @@
 - `npm pack --dry-run`: `dist`, README, MIT LICENSE, 게시 가이드, package metadata만
   포함. 소스/테스트/개발 환경/인증 설정은 배포 tarball에서 제외.
 - `actionlint 1.7.12`: CI와 npm 게시 workflow 검사 통과.
-- GitHub CI: Node.js 22와 24에서 check와 tarball 설치 검증.
+- [GitHub CI 실행 40177781421](https://github.com/smallmiro/codex-discussion-mcp/actions/runs/40177781421):
+  구현 커밋 `e875ef2`를 Node.js 22와 24에서 check와 tarball 설치 검증, 모두 통과.
+- 해당 GitHub 실행의 `npm-package` artifact를 다운로드해 macOS에서 별도 설치 후
+  같은 binary/MCP 검증을 다시 통과했다. 로컬 경로:
+  `artifacts/mirolab-codex-discussion-mcp-0.1.0.tgz`.
 
 ## 실제 Codex 검증
 
