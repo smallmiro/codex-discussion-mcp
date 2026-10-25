@@ -37,6 +37,12 @@ codex-discussion-mcp --help
 사용자가 그 tarball을 게시하는 절차를 사용합니다. 이후 패키지 설정에서
 Trusted Publishing을 연결합니다.
 
+먼저 해당 개인 npm 계정에서 **2FA를 활성화**하세요. 로그인과 조직 owner 권한이
+있어도 2FA가 비활성화되어 있으면 직접 게시가 `E403`으로 거절됩니다.
+npm 프로필 메뉴 → Account → Two-Factor Authentication → Enable 2FA에서
+설정하고, 게시 시 나타나는 인증 절차를 브라우저에서 완료합니다.
+[npm 2FA 설정 안내](https://docs.npmjs.com/configuring-two-factor-authentication/)
+
 ```bash
 npm login --registry=https://registry.npmjs.org/
 npm whoami --registry=https://registry.npmjs.org/
