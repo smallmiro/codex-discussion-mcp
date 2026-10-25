@@ -1,18 +1,43 @@
 {
   "name": "@mirolab/codex-discussion-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Discuss coding decisions with Codex from any MCP-compatible coding agent, with dynamic model and reasoning effort selection.",
   "type": "module",
   "license": "MIT",
   "author": "Junhwan Oh",
-  "repository": { "type": "git", "url": "git+https://github.com/smallmiro/codex-discussion-mcp.git" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/smallmiro/codex-discussion-mcp.git"
+  },
   "homepage": "https://github.com/smallmiro/codex-discussion-mcp#readme",
-  "bugs": { "url": "https://github.com/smallmiro/codex-discussion-mcp/issues" },
-  "keywords": ["mcp", "codex", "app-server", "claude-code", "antigravity", "kiro", "discussion"],
-  "bin": { "codex-discussion-mcp": "dist/index.js" },
-  "files": ["dist", "README.md", "LICENSE", "docs/publishing.md"],
-  "engines": { "node": ">=22.14.0" },
-  "publishConfig": { "access": "public", "registry": "https://registry.npmjs.org/" },
+  "bugs": {
+    "url": "https://github.com/smallmiro/codex-discussion-mcp/issues"
+  },
+  "keywords": [
+    "mcp",
+    "codex",
+    "app-server",
+    "claude-code",
+    "antigravity",
+    "kiro",
+    "discussion"
+  ],
+  "bin": {
+    "codex-discussion-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "docs/publishing.md"
+  ],
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.test.json",
@@ -22,6 +47,14 @@
     "smoke": "node scripts/smoke.mjs",
     "prepack": "npm run build"
   },
-  "dependencies": { "@modelcontextprotocol/server": "^2.4.0", "zod": "^4.6.7" },
-  "devDependencies": { "@modelcontextprotocol/client": "^2.4.0", "@types/node": "^22.0.0", "tsx": "^4.23.15", "typescript": "^7.0.2" }
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.4.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.4.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
 }
