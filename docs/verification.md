@@ -54,6 +54,8 @@ history API가 아직 준비되지 않은 경우도 각각 실패 테스트 후 
 - 생성 중 업데이트된 메시지는 커서 없이 재조회하는 계약이다. 메시지 페이지
   커서는 프로세스·대화·발언에 연결되며 재시작 후에는 재사용하지 않는다.
 - npm OIDC 게시 workflow와 설정 가이드를 제공했다. npm 조직의 첫 게시와
-  Trusted Publisher 연결은 계정 관리자가 수행해야 하며 실제 npm 게시는 실행하지 않았다.
+  Trusted Publisher 연결은 계정 관리자의 설정이 필요하다. 초기 개발 검증 이후
+  사용자가 등록한 GitHub Secret으로 [0.1.0 첫 게시](releases/0.1.0.md)를 완료했다.
+  OIDC 방식의 실제 게시는 아직 검증하지 않았다.
 
 향후 검증 실행과 artifact는 [GitHub Actions](https://github.com/smallmiro/codex-discussion-mcp/actions)에서 확인할 수 있다.

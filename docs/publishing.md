@@ -1,5 +1,8 @@
 # GitHub Actions → npm 공개 배포
 
+`0.1.0` 첫 공개 게시를 완료했습니다. [릴리스 기록](releases/0.1.0.md)
+이 버전의 bootstrap 게시를 다시 실행하지 말고, 다음 버전부터 아래 OIDC 연결을 준비하세요.
+
 - GitHub: `smallmiro/codex-discussion-mcp`
 - npm 조직: `mirolab`
 - 패키지: `@mirolab/codex-discussion-mcp`
