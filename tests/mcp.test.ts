@@ -29,7 +29,8 @@ test('CLI help and version work without starting Codex', async () => {
   const help = await execFile(process.execPath, ['--import', 'tsx', entry, '--help', '--codex-command', '/nonexistent/codex']);
   assert.match(help.stdout, /codex-discussion-mcp/);
   const version = await execFile(process.execPath, ['--import', 'tsx', entry, '--version']);
-  assert.equal(version.stdout.trim(), '0.1.0');
+  const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
+  assert.equal(version.stdout.trim(), pkg.version);
 });
 
 test('MCP discovery exposes five tools with dynamic model and effort strings', async t => {
