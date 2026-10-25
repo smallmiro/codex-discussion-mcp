@@ -1,6 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { DiscussionError } from './errors.js';
 import { record, type Notification, type RpcClient } from './protocol.js';
+import { version } from './version.js';
 
 export interface AppServerOptions {
   command?: string;
@@ -59,7 +60,7 @@ export class AppServer implements RpcClient {
     this.child.on('exit', (code, signal) => this.fail(new DiscussionError('CONNECTION_LOST', `Codex app-server connection exited (${signal ?? code}). In-flight turns were not replayed.`)));
     this.child.stdin.on('error', error => this.fail(new DiscussionError('CONNECTION_LOST', `App-server input connection failed: ${error.message}`)));
     await this.sendRequest('initialize', {
-      clientInfo: { name: 'mirolab_codex_discussion_mcp', title: 'Codex Discussion MCP', version: '0.1.0' },
+      clientInfo: { name: 'mirolab_codex_discussion_mcp', title: 'Codex Discussion MCP', version },
     });
     this.write({ method: 'initialized', params: {} });
   }

@@ -5,6 +5,8 @@ let initialized = false;
 let notified = false;
 const waiting = new Map();
 const requests = [];
+const pidFile = process.argv.find(arg => arg.startsWith('--pid-file='))?.slice('--pid-file='.length);
+if (pidFile) writeFileSync(pidFile, String(process.pid));
 const stateFile = process.argv.find(arg => arg.startsWith('--state-file='))?.slice('--state-file='.length);
 const threads = stateFile && existsSync(stateFile) ? JSON.parse(readFileSync(stateFile, 'utf8')) : {};
 const save = () => { if (stateFile) writeFileSync(stateFile, JSON.stringify(threads)); };
