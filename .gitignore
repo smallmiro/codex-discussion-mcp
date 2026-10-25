@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.worktrees/
+.superpowers/
+*.tgz
+*.log
+.env
+.env.*
+.DS_Store

@@ -1,6 +1,6 @@
 # Codex 토론 MCP 설계
 
-상태: 구현 가능성 검토 완료, 사용자 확인 대기. 제품 코드는 아직 작성하지 않음.
+상태: 사용자가 2026-10-25 계획 수립과 개발 진행을 요청함. 구현 진행.
 별도 검토 에이전트는 구현 계획을 막는 미확정 사항이 없음을 확인했다.
 
 ## 목적과 확인된 요구사항
@@ -33,7 +33,8 @@ GitHub 저장소는 `https://github.com/smallmiro/codex-discussion-mcp`다.
 
 다음은 사용자가 지정한 사항이 아니라 구현을 위한 제안이다.
 
-- Node.js와 TypeScript, 공식 MCP SDK 사용.
+- Node.js >=22.14와 TypeScript, 공식 MCP SDK v2 사용. 기존 MCP 호스트와의
+  호환성은 SDK의 legacy protocol 지원과 통합 테스트로 검증한다.
 - 외부 호스트와 MCP 서버 사이에는 stdio MCP 사용.
 - MCP 서버는 전용 `codex app-server --listen stdio://` 자식 프로세스를 실행한다.
 - 기존 Codex CLI의 로그인과 provider 설정을 사용하며 인증 파일을 직접 읽지 않는다.
