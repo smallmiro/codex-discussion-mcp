@@ -1,5 +1,12 @@
 # Codex Discussion MCP
 
+[![npm version](https://img.shields.io/npm/v/@mirolab/codex-discussion-mcp?logo=npm)](https://www.npmjs.com/package/@mirolab/codex-discussion-mcp)
+[![npm downloads](https://img.shields.io/npm/dm/@mirolab/codex-discussion-mcp?logo=npm)](https://www.npmjs.com/package/@mirolab/codex-discussion-mcp)
+[![GitHub issues](https://img.shields.io/github/issues/smallmiro/codex-discussion-mcp?logo=github)](https://github.com/smallmiro/codex-discussion-mcp/issues)
+[![Documentation](https://img.shields.io/badge/docs-README-blue?logo=readthedocs&logoColor=white)](https://github.com/smallmiro/codex-discussion-mcp#readme)
+[![License: MIT](https://img.shields.io/github/license/smallmiro/codex-discussion-mcp)](LICENSE)
+[![Sponsor](https://img.shields.io/badge/sponsor-smallmiro-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/smallmiro)
+
 A local MCP server that lets Claude Code, Antigravity CLI, Kiro CLI, and other
 agents call **Codex as an independent discussion partner**. The calling agent leads
 the discussion and can choose a model and reasoning effort for each question.
