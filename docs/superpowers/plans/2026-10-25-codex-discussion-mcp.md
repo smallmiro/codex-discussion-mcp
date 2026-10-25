@@ -96,6 +96,6 @@
 
 ## Finish
 
-- [ ] Run independent whole-branch review per executing-plans; fix important findings with failing regression tests.
+- [x] Run independent whole-branch review per executing-plans; fix important findings with failing regression tests.
 - [ ] Re-run required validation; fast-forward main to reviewed implementation, push to origin, inspect CI and address failures.
 - [ ] Report actual working features, test evidence, GitHub commit, npm publish readiness and remaining account setup.

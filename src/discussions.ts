@@ -18,6 +18,7 @@ interface TurnState {
   model: string | null;
   effort: string | null;
   live: boolean;
+  inlineHistory?: boolean;
   messages: Map<string, PublicMessage>;
   syntheticUserId?: string;
   error?: ReturnType<typeof errorResult>;
@@ -49,6 +50,7 @@ export class DiscussionService {
   private loading = new Map<string, Promise<DiscussionState>>();
   private readonly cursors = new Cursors();
   private readonly unsubscribe: Array<() => void>;
+  private connected = true;
 
   constructor(
     private readonly rpc: RpcClient,
@@ -105,11 +107,15 @@ export class DiscussionService {
     }
     const cursor = this.cursors.decode(input.cursor, input.discussionId, input.turnId);
     const state = await this.load(input.discussionId);
+    const observed = state.turns.get(input.turnId ?? cursor?.turnId ?? state.latestTurnId ?? '');
+    const observedVersion = observed?.version;
+    await this.refreshReadState(state);
     const turn = await this.findTurn(state, input.turnId ?? cursor?.turnId);
     const position = cursor ?? { discussionId: state.id, turnId: turn.id, kind: turn.live ? 'live' as const : 'history' as const, offset: 0, textOffset: 0 };
     if (turn.live && position.kind !== 'live') throw new DiscussionError('INVALID_CURSOR', 'Cursor does not refer to a live message page. Retry without a cursor.');
-    if (waitMs && turn.status === 'inProgress' && turn.live) await this.wait(turn, waitMs, signal);
-    const page = turn.live
+    const outputArrived = observed === turn && observedVersion !== turn.version;
+    if (waitMs && turn.status === 'inProgress' && turn.live && !outputArrived) await this.wait(turn, waitMs, signal);
+    const page = turn.live || turn.inlineHistory
       ? this.cursors.page(this.orderedMessages(turn), position, limit)
       : await this.historyPage(state, turn, position, limit);
     return { ...this.summary(state, turn), ...page };
@@ -220,6 +226,58 @@ export class DiscussionService {
     throw new DiscussionError('TURN_NOT_FOUND', 'Requested turn was not found in this discussion.');
   }
 
+  private async refreshReadState(state: DiscussionState) {
+    // Keep already received output usable after loss, but never treat a connected cache
+    // as evidence that no other client has started work on the persisted thread.
+    if (!this.connected) return;
+    const local = state.latestTurnId ? state.turns.get(state.latestTurnId) : undefined;
+    const ownedActiveId = local?.live && local.status === 'inProgress' ? local.id : undefined;
+    try {
+      const metadata = record(await this.rpc.request('thread/read', { threadId: state.id, includeTurns: false }));
+      const thread = record(metadata.thread);
+      let latest: Record<string, unknown>;
+      let inline = false;
+      try {
+        const page = record(await this.rpc.request('thread/turns/list', {
+          threadId: state.id, limit: 1, itemsView: 'notLoaded', sortDirection: 'desc',
+        }));
+        if (!Array.isArray(page.data)) throw new DiscussionError('PROTOCOL_ERROR', 'Invalid latest turn response.');
+        latest = record(page.data[0]);
+      } catch (error) {
+        if (!(error instanceof DiscussionError) || error.details?.rpcCode !== -32601) throw error;
+        // Newly started live threads may not expose paginated history yet. The
+        // supported legacy read hydrates their current turns without inference.
+        const full = record(await this.rpc.request('thread/read', { threadId: state.id, includeTurns: true }));
+        const turns = record(full.thread).turns;
+        if (!Array.isArray(turns)) throw new DiscussionError('PROTOCOL_ERROR', 'Invalid inline thread history response.');
+        latest = record(turns.at(-1));
+        inline = true;
+      }
+      if (record(thread.status).type === 'active' && (typeof latest.id !== 'string' || latest.id !== ownedActiveId)) {
+        this.busy(state, typeof latest.id === 'string' ? latest.id : undefined);
+      }
+      if (typeof latest.id === 'string') {
+        state.latestTurnId = latest.id;
+        if (!state.turns.has(latest.id)) {
+          const turn = this.newTurn(latest.id, statusOf(latest.status), false);
+          if (latest.error) turn.error = { code: 'INFERENCE_ERROR', message: String(record(latest.error).message ?? 'Codex turn failed') };
+          state.turns.set(turn.id, turn);
+        }
+        const turn = state.turns.get(latest.id)!;
+        if (inline && !turn.live && Array.isArray(latest.items)) {
+          for (const item of latest.items) this.ingest(turn, item, true);
+          turn.inlineHistory = true;
+        }
+      }
+      if (!state.submitting) {
+        if (typeof thread.model === 'string') state.model = thread.model;
+        if ('reasoningEffort' in thread) state.effort = typeof thread.reasoningEffort === 'string' ? thread.reasoningEffort : undefined;
+      }
+    } catch (error) {
+      if (this.connected) throw error;
+    }
+  }
+
   private async historyPage(state: DiscussionState, turn: TurnState, position: Omit<ReadCursor, 'instance'>, limit: number) {
     if (position.kind !== 'history') throw new DiscussionError('INVALID_CURSOR', 'Expired live cursor. Retry without a cursor.');
     const result = record(await this.rpc.request('thread/items/list', {
@@ -293,6 +351,7 @@ export class DiscussionService {
   }
 
   private onDisconnect(error: Error) {
+    this.connected = false;
     for (const state of this.discussions.values()) {
       for (const turn of state.turns.values()) {
         if (turn.status !== 'inProgress') continue;

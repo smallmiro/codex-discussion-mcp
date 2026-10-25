@@ -101,9 +101,10 @@ test('large message text is chunked without losing content', async t => {
 test('long poll wakes on new output before its wait deadline', async t => {
   const { service, rpc } = discussionClient(t);
   const first = await service.start({ message: 'hold' });
-  const read = service.read({ discussionId: first.discussionId, waitMs: 1000 });
-  await rpc.request('test/event', { method: 'item/agentMessage/delta', params: { threadId: first.discussionId, turnId: first.turnId, itemId: 'partial', delta: 'new output' } });
-  const result = await read;
+  await rpc.request('test/armReadNotification', { threadId: first.discussionId, turnId: first.turnId, itemId: 'partial', delta: 'new output' });
+  const before = performance.now();
+  const result = await service.read({ discussionId: first.discussionId, waitMs: 1000 });
+  assert.ok(performance.now() - before < 750, 'Output received during backend freshness checks must wake the read');
   assert.equal(result.status, 'inProgress');
   assert.ok(result.messages.some(message => message.text === 'new output'));
 });
@@ -189,4 +190,47 @@ test('invalid project directory or unknown turn is rejected explicitly', async t
   await assert.rejects(service.start({ message: 'hello', cwd: '/path/that/does/not/exist' }), /directory/i);
   const first = await service.start({ message: 'early' });
   await assert.rejects(service.read({ discussionId: first.discussionId, turnId: 'missing' }), /turn.*found/i);
+});
+
+test('cached reads detect foreign activity and refresh the latest persisted turn after it ends', async t => {
+  const { service, rpc } = discussionClient(t);
+  const first = await service.start({ message: 'early' });
+  assert.equal((await service.read({ discussionId: first.discussionId })).status, 'completed');
+  const external = await rpc.request<{ turnId: string }>('test/externalStart', { threadId: first.discussionId });
+  await assert.rejects(service.read({ discussionId: first.discussionId }), error => {
+    assert.equal((error as { code: string }).code, 'DISCUSSION_BUSY');
+    return true;
+  });
+  await rpc.request('test/externalComplete', { threadId: first.discussionId });
+  const latest = await service.read({ discussionId: first.discussionId });
+  assert.equal(latest.turnId, external.turnId);
+  assert.equal(latest.status, 'completed');
+  assert.ok(latest.messages.some(message => message.text === 'External answer'));
+  assert.deepEqual(latest.threadDefaults, { model: 'beta', effort: 'medium' });
+  const old = await service.read({ discussionId: first.discussionId, turnId: first.turnId });
+  assert.equal(old.turnId, first.turnId);
+  assert.ok(old.messages.some(message => message.text === 'Codex answer'));
+});
+
+test('completed local output remains readable after the backend connection is lost', async t => {
+  const { service, rpc } = discussionClient(t);
+  const first = await service.start({ message: 'early' });
+  await assert.rejects(rpc.request('test/exit', {}));
+  const read = await service.read({ discussionId: first.discussionId });
+  assert.equal(read.status, 'completed');
+  assert.ok(read.messages.some(message => message.text === 'Codex answer'));
+});
+
+test('freshness checks fall back when a new live thread has no paginated history yet', async t => {
+  const { service, rpc } = discussionClient(t, ['--no-live-history']);
+  const first = await service.start({ message: 'hold' });
+  assert.equal((await service.read({ discussionId: first.discussionId })).status, 'inProgress');
+  await rpc.request('test/complete', { threadId: first.discussionId });
+  assert.equal((await service.read({ discussionId: first.discussionId })).status, 'completed');
+  const external = await rpc.request<{ turnId: string }>('test/externalStart', { threadId: first.discussionId });
+  await assert.rejects(service.read({ discussionId: first.discussionId }), /active|pending/i);
+  await rpc.request('test/externalComplete', { threadId: first.discussionId });
+  const latest = await service.read({ discussionId: first.discussionId });
+  assert.equal(latest.turnId, external.turnId);
+  assert.ok(latest.messages.some(message => message.text === 'External answer'));
 });

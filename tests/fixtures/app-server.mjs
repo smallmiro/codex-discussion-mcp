@@ -5,10 +5,12 @@ let initialized = false;
 let notified = false;
 const waiting = new Map();
 const requests = [];
+let armedReadNotification;
 const pidFile = process.argv.find(arg => arg.startsWith('--pid-file='))?.slice('--pid-file='.length);
 if (pidFile) writeFileSync(pidFile, String(process.pid));
 const stateFile = process.argv.find(arg => arg.startsWith('--state-file='))?.slice('--state-file='.length);
 const threads = stateFile && existsSync(stateFile) ? JSON.parse(readFileSync(stateFile, 'utf8')) : {};
+const originalThreadIds = new Set(Object.keys(threads));
 const save = () => { if (stateFile) writeFileSync(stateFile, JSON.stringify(threads)); };
 const notify = (method, params) => send({ method, params });
 const alpha = { id: 'picker-alpha', model: 'alpha', displayName: 'Alpha', description: 'Everyday coding', hidden: false, isDefault: true, defaultReasoningEffort: 'low', supportedReasoningEfforts: [{ reasoningEffort: 'low', description: 'Faster' }, { reasoningEffort: 'high', description: 'Deeper' }] };
@@ -67,6 +69,9 @@ createInterface({ input: process.stdin }).on('line', async line => {
     reply(id, {});
   } else if (method === 'test/requests') {
     reply(id, requests);
+  } else if (method === 'test/armReadNotification') {
+    armedReadNotification = params;
+    reply(id, {});
   } else if (method === 'model/list') {
     reply(id, { data: params.cursor ? [beta] : [alpha], nextCursor: params.cursor ? null : 'page-2' });
   } else if (method === 'thread/start') {
@@ -82,7 +87,11 @@ createInterface({ input: process.stdin }).on('line', async line => {
   } else if (method === 'thread/read' || method === 'thread/resume') {
     const thread = threads[params.threadId];
     if (!thread) { send({ id, error: { code: -32001, message: 'Thread not found' } }); return; }
-    reply(id, { thread: { ...thread, turns: [] }, model: thread.model, reasoningEffort: thread.reasoningEffort, cwd: thread.cwd });
+    if (method === 'thread/read' && armedReadNotification) {
+      notify('item/agentMessage/delta', armedReadNotification);
+      armedReadNotification = undefined;
+    }
+    reply(id, { thread: { ...thread, turns: method === 'thread/read' && params.includeTurns ? thread.turns : [] }, model: thread.model, reasoningEffort: thread.reasoningEffort, cwd: thread.cwd });
   } else if (method === 'turn/start') {
     const thread = threads[params.threadId];
     const text = params.input[0].text;
@@ -104,6 +113,24 @@ createInterface({ input: process.stdin }).on('line', async line => {
     const thread = threads[params.threadId];
     complete(thread, thread.turns.at(-1), params.status, params.text);
     reply(id, {});
+  } else if (method === 'test/externalStart') {
+    const thread = threads[params.threadId];
+    const turn = { id: `external-${thread.turns.length + 1}`, status: 'inProgress', error: null,
+      items: [{ id: 'external-user', type: 'userMessage', content: [{ type: 'text', text: 'External question' }] }] };
+    thread.turns.push(turn);
+    thread.model = 'beta';
+    thread.reasoningEffort = 'medium';
+    thread.status = { type: 'active', activeFlags: [] };
+    save();
+    reply(id, { turnId: turn.id });
+  } else if (method === 'test/externalComplete') {
+    const thread = threads[params.threadId];
+    const turn = thread.turns.at(-1);
+    turn.status = 'completed';
+    turn.items.push({ id: 'external-assistant', type: 'agentMessage', text: 'External answer' });
+    thread.status = { type: 'idle' };
+    save();
+    reply(id, {});
   } else if (method === 'test/event') {
     notify(params.method, params.params);
     reply(id, {});
@@ -113,6 +140,10 @@ createInterface({ input: process.stdin }).on('line', async line => {
     if (turn && turn.status === 'inProgress') complete(thread, turn, 'interrupted', 'Interrupted');
     reply(id, {});
   } else if (method === 'thread/turns/list') {
+    if (process.argv.includes('--no-live-history') && !originalThreadIds.has(params.threadId)) {
+      send({ id, error: { code: -32601, message: 'list_turns is not supported yet' } });
+      return;
+    }
     if (params.itemsView && !['notLoaded', 'summary', 'full'].includes(params.itemsView)) {
       send({ id, error: { code: -32600, message: 'Invalid request: itemsView must be notLoaded, summary or full' } });
       return;
