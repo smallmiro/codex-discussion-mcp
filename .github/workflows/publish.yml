@@ -55,4 +55,4 @@ jobs:
           path: artifacts/*.tgz
           if-no-files-found: error
       - name: Publish using npm trusted publishing (OIDC)
-        run: npm publish artifacts/*.tgz --access public
+        run: npm publish ./artifacts/*.tgz --access public
