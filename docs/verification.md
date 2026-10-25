@@ -65,6 +65,8 @@ The review reported no Critical or Minor findings.
   to the npm organization and Trusted Publisher configuration require setup by an
   account administrator. After the initial development verification, the
   [first publication of 0.1.0](releases/0.1.0.md) was completed using a GitHub Secret
-  configured by the user. Actual publication via OIDC has not yet been verified.
+  configured by the user. [0.1.1](releases/0.1.1.md) was published the same way
+  after its OIDC run was rejected with `E404` because no Trusted Publisher is
+  configured. Actual publication via OIDC has not yet been verified.
 
 Future verification runs and artifacts are available in [GitHub Actions](https://github.com/smallmiro/codex-discussion-mcp/actions).

@@ -1,8 +1,10 @@
 # Public npm publishing through GitHub Actions
 
-The first public release, `0.1.0`, has been published. See the
-[release record](releases/0.1.0.md). Do not rerun bootstrap publishing for this
-version. Set up the OIDC connection below for subsequent versions.
+The current public release is `0.1.1`. See the release records for
+[0.1.0](releases/0.1.0.md) and [0.1.1](releases/0.1.1.md). Published versions
+cannot be republished. Both versions were published with the bootstrap token
+because no npm Trusted Publisher is configured yet; the `v0.1.1` OIDC run was
+rejected with `E404`. Set up the OIDC connection below before the next version.
 
 - GitHub: `smallmiro/codex-discussion-mcp`
 - npm organization: `mirolab`
