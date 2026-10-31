@@ -1,5 +1,5 @@
 import { createInterface } from 'node:readline';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 
 let initialized = false;
 let notified = false;
@@ -11,7 +11,12 @@ if (pidFile) writeFileSync(pidFile, String(process.pid));
 const stateFile = process.argv.find(arg => arg.startsWith('--state-file='))?.slice('--state-file='.length);
 const threads = stateFile && existsSync(stateFile) ? JSON.parse(readFileSync(stateFile, 'utf8')) : {};
 const originalThreadIds = new Set(Object.keys(threads));
-const save = () => { if (stateFile) writeFileSync(stateFile, JSON.stringify(threads)); };
+const save = () => {
+  if (!stateFile) return;
+  const pending = `${stateFile}.tmp`;
+  writeFileSync(pending, JSON.stringify(threads));
+  renameSync(pending, stateFile);
+};
 const notify = (method, params) => send({ method, params });
 const alpha = { id: 'picker-alpha', model: 'alpha', displayName: 'Alpha', description: 'Everyday coding', hidden: false, isDefault: true, defaultReasoningEffort: 'low', supportedReasoningEfforts: [{ reasoningEffort: 'low', description: 'Faster' }, { reasoningEffort: 'high', description: 'Deeper' }] };
 const beta = { id: 'picker-beta', model: 'beta', displayName: 'Beta', description: 'Harder coding', hidden: false, isDefault: false, defaultReasoningEffort: 'medium', supportedReasoningEfforts: [{ reasoningEffort: 'medium', description: 'Balanced' }, { reasoningEffort: 'new-future-effort', description: 'Future option' }] };
