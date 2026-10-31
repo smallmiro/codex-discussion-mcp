@@ -254,6 +254,42 @@ restart, keep the discussion ID but read without an old cursor.
 
 ## 6. Update or remove the skill
 
+### Check and update the MCP package
+
+Call `models_list` to obtain package `update` metadata alongside the unchanged
+model catalog, in structured results or the JSON text fallback. For `available`,
+the skill relays the running/newer versions, release-notes link and upgrade and
+reconnect instructions in your language once per newer version per session.
+This portable delivery mechanism does not promise desktop popups or display in
+every host. Older servers may omit the field; `unavailable` and `disabled` never
+prove the installed version is current.
+
+Automatic checks start in the background, fetch public npm version metadata only,
+have a 1500 ms network timeout including response bodies, and coalesce concurrent
+lookups within one process. Success and failure metadata is cached for 24 hours
+across restarts, under `codex-discussion-mcp/update.json` in the OS user cache:
+absolute `$XDG_CACHE_HOME` or `~/.cache` on Linux, `~/Library/Caches` on macOS,
+`%LOCALAPPDATA%` or `~/AppData/Local` on Windows. Cache failures are ignored;
+in-memory throttling remains. Registry errors do not block discussion submission,
+polling or cancellation. `models_list` awaits the bounded check alongside catalog
+retrieval. `--help` and `--version` do not check npm.
+
+To disable network checks and update cache reads/writes, pass `--no-update-check`
+in the server's configured arguments, or set `CODEX_DISCUSSION_UPDATE_CHECK=0`
+in its environment.
+
+- **Global npm installation:** run `npm install -g @mirolab/codex-discussion-mcp@latest`.
+- **Project-local npm installation:** run `npm install @mirolab/codex-discussion-mcp@latest`
+  in the installation's project, preserving its dependency/devDependency convention.
+- **Version-pinned npx:** change the configured `@mirolab/codex-discussion-mcp@VERSION`
+  argument to the desired newer version. A global installation does not update this pin.
+
+After updating, finish active work and reconnect/restart the MCP server through
+the host to load the new version. The checker never installs anything, rewrites
+configuration, performs inference or interrupts/restarts active discussions.
+
+### Refresh or remove a copied skill
+
 An installed copy is independent of the checkout or npm package. Pulling changes
 or updating the package does not update that copy.
 

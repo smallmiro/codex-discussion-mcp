@@ -98,6 +98,46 @@ not support skills, put a short routing instruction in its supported project
 guidelines, pointing to the installed guide. The server also supplies basic MCP
 instructions and tool descriptions, whose presentation depends on the host.
 
+## Updates and automatic checks
+
+The server checks public npm `latest` version metadata in the background at
+startup and exposes the result through `models_list` in structured and text
+results. It does not run inference or install anything. The skill relays an
+available notice in the caller's language once per newer version per session;
+hosts are not guaranteed to display it, and there are no desktop popups.
+
+Checks have a 1500 ms network deadline covering headers and body, coalesce within
+one process, and cache successful and failed checks for 24 hours across restarts.
+Only version/check metadata is stored in `codex-discussion-mcp/update.json` under
+absolute `$XDG_CACHE_HOME` or `~/.cache` on Linux, `~/Library/Caches` on macOS, and
+`%LOCALAPPDATA%` or `~/AppData/Local` on Windows. Cache failures are ignored and an
+in-memory cache still throttles the process. Offline and malformed responses
+yield `unavailable`, not a claim that the version is current. Discussion tools
+remain usable; only `models_list` awaits the bounded check alongside discovery.
+`--help` and `--version` do not access npm.
+
+Disable checks and cache reads/writes with server argument `--no-update-check`
+or server environment variable `CODEX_DISCUSSION_UPDATE_CHECK=0`.
+
+Use the procedure for the installation the host actually launches:
+
+- **Global npm installation:** `npm install -g @mirolab/codex-discussion-mcp@latest`.
+- **Project-local npm installation:** run
+  `npm install @mirolab/codex-discussion-mcp@latest` in that installation's project,
+  preserving its dependency/devDependency convention.
+- **Version-pinned npx:** update the configured
+  `@mirolab/codex-discussion-mcp@VERSION` argument to the desired newer version.
+  Installing globally does not update an npx pin.
+
+Finish active discussions, then reconnect/restart the MCP server in the host to
+load the new package. The checker never modifies installed code, dependencies,
+MCP configuration, or running discussions and never restarts the server.
+A separately copied skill must be refreshed separately: preserve customizations,
+move the old copy outside skill discovery directories, copy the complete updated
+skill directory, then reload the host's skills. Updating npm does not overwrite
+that copy. See the
+[manual](https://github.com/smallmiro/codex-discussion-mcp/blob/main/docs/skills.md#6-update-or-remove-the-skill).
+
 ## Troubleshooting
 
 | Symptom | Check |

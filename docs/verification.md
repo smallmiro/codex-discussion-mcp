@@ -191,4 +191,35 @@ The review reported no Critical or Minor findings.
   after its OIDC run was rejected with `E404` because no Trusted Publisher is
   configured. Actual publication via OIDC has not yet been verified.
 
+## Automatic Update Notices (2026-10-31)
+
+Validation for [issue #9](https://github.com/smallmiro/codex-discussion-mcp/issues/9)
+on Node.js 22.22.0:
+
+- `npm run check`: passed type checking, all 64 tests, and the TypeScript build.
+- `npm run verify:package`: passed a fresh tarball installation, executable
+  help/version, shipped skill/manual contents, MCP discovery, catalog metadata
+  and disabled update status, model selection, and a fixture-backed two-turn
+  discussion independently of the source checkout.
+- `npm pack --dry-run`: passed; 28 intended package files, including the compiled
+  checker and portable skill documentation; no source/tests or cache data.
+- `git diff --check`: passed. Relative documentation links and JSON examples were
+  checked locally; the copied skill uses a public URL for the external manual.
+
+The nine checker tests cover strict semantic version precedence for stable npm
+latest versions, invalid/equal/older versions, persistent success/failure caches,
+24-hour expiration, concurrency, invalid/stale/future cache entries, offline and
+malformed/oversized responses, header/body deadlines, shutdown, cache failures,
+opt-out and OS cache paths. The 13 MCP integration tests include actual process
+restart cache reuse, cache read/write errors, CLI/environment opt-out,
+help/version without registry calls, unchanged model metadata, identical
+structured/text update information, legacy-host protocol stdout and shutdown,
+and discussion start/read/cancel while registry requests fail or stall.
+
+An independent code review reported no material findings after fixing a manual
+link that would break in separately copied skills. Checks used controlled registry
+responses and the deterministic app-server fixture. Public registry access, live
+inference, individual host notice display and a new npm release were not part of
+this verification. Package version remains 0.1.2; publication is a separate task.
+
 Future verification runs and artifacts are available in [GitHub Actions](https://github.com/smallmiro/codex-discussion-mcp/actions).
