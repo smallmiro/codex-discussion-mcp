@@ -52,7 +52,7 @@ You can also run it without a global installation. Register this command in your
 MCP configuration:
 
 ```bash
-npx -y @mirolab/codex-discussion-mcp@0.1.2
+npx -y @mirolab/codex-discussion-mcp@0.1.3
 ```
 
 This command waits for requests as a stdio MCP server. You do not type questions
@@ -128,7 +128,7 @@ Register without a global installation:
 
 ```bash
 claude mcp add --transport stdio --scope user codex-discussion -- \
-  npx -y @mirolab/codex-discussion-mcp@0.1.2
+  npx -y @mirolab/codex-discussion-mcp@0.1.3
 ```
 
 To share the configuration at the project level, replace `--scope user` with
@@ -149,7 +149,7 @@ configuration file.
   "mcpServers": {
     "codex-discussion": {
       "command": "npx",
-      "args": ["-y", "@mirolab/codex-discussion-mcp@0.1.2"]
+      "args": ["-y", "@mirolab/codex-discussion-mcp@0.1.3"]
     }
   }
 }

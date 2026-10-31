@@ -1,6 +1,6 @@
 {
   "name": "@mirolab/codex-discussion-mcp",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Discuss coding decisions with Codex from any MCP-compatible coding agent, with dynamic model and reasoning effort selection.",
   "type": "module",
   "license": "MIT",
