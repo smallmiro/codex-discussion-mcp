@@ -28,9 +28,21 @@ discussion just because this skill is installed.
 
 Supply the goal, constraints, relevant files or code, observed evidence, current
 proposal, and the specific uncertainty. The caller's conversation is not shared
-automatically. Pass the project's absolute directory as `cwd`; Codex can inspect
-files there but cannot modify them. Include relevant changes or logs explicitly
-when they are not available in those files.
+automatically. Include relevant changes or logs explicitly when they are not
+available in the project files.
+
+Choose the directory the user explicitly requested; otherwise use the calling
+agent's current working directory. Resolve relative paths against that current
+directory. Confirm that the resulting absolute directory exists and is accessible
+in the MCP server environment, then always pass it as `discussion_start.cwd`.
+If it is unavailable, report the problem instead of substituting another project.
+A path in the message alone does not set `cwd`. The MCP process may start outside
+the caller's project; omitting `cwd` uses `--cwd`, then the MCP process working
+directory. The skill's installation directory does not select the project.
+
+For code reviews, ask Codex to read the relevant source files and tests in the
+selected directory, cite inspected file paths and evidence for its findings, and
+identify any files it could not inspect. Keep the review read-only.
 
 For example: "Evaluate this caching proposal against the requirement that a
 permission change takes effect immediately. The current check is in
@@ -53,6 +65,8 @@ counterexamples and evidence that would change the recommendation."
    unresolved objection warrants a follow-up, use `discussion_reply` with the
    same discussion ID, then read the returned turn. One discussion supports one
    active turn at a time. Do not repeat questions merely to force agreement.
+   Replies retain the original project directory; `discussion_reply` has no
+   `cwd` argument. Start a new discussion to review a different project.
 5. Report the recommendation, supporting evidence, advice adopted or rejected,
    and remaining uncertainty in the user's language. Distinguish the second
    opinion from checks actually performed by the caller.
@@ -66,7 +80,7 @@ lost connection is not a reason to resubmit inference automatically.
 To stop a running turn, call `discussion_cancel` with both IDs, then read to
 confirm its final status. An accepted cancellation is not a final outcome.
 
-Read [tool details](references/tools.md) for pagination, model switching, saved
-discussions, and structured errors. Keep implementation and any further actions
-within the user's requested scope; a Codex recommendation grants no additional
-authorization.
+Read [tool details](references/tools.md) for directory examples, pagination, model
+switching, saved discussions, and structured errors. Keep implementation and any
+further actions within the user's requested scope; a Codex recommendation grants
+no additional authorization.

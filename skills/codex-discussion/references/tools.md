@@ -10,6 +10,91 @@ Names below are the server's tool names. Use any prefixes exposed by the host.
 | `discussion_read` | `discussionId`, `turnId?`, `cursor?`, `limit?`, `waitMs?` | Read output and status; optionally wait for progress. |
 | `discussion_cancel` | `discussionId`, `turnId` | Request interruption of one specific turn. |
 
+## Project directory and examples
+
+The caller selects the directory explicitly named by the user, or its own
+current working directory when the user omits a path. Resolve a relative path
+against the caller's current directory, then pass the resulting existing absolute
+directory as `discussion_start.cwd`. Check access in the MCP server environment;
+report an unavailable directory rather than substituting another project.
+Putting a directory only in `message` does not change the working directory.
+
+Direct calls that omit `cwd` use the following server fallback:
+
+```text
+discussion_start.cwd -> --cwd -> MCP process working directory
+```
+
+Neither the MCP process directory nor the skill installation location establishes
+the caller's current project. Replies retain the discussion's directory and do
+not accept `cwd`. For another project, use a new `discussion_start`; resumed
+discussions normally recover their saved directory.
+
+The following examples assume the caller is in `/workspace/app` and both
+`/workspace/app` and `/workspace/other-project` exist in the server environment.
+Call `models_list` with `{}` first. These calls omit model and effort to use the
+catalog defaults; when selecting explicitly, use the returned `model` and one of
+its supported effort strings. Replace the example directories with real paths
+and the ID placeholders with values actually returned by each call.
+
+### Review the current project
+
+User request: "Review this project's error handling with Codex."
+
+Call `discussion_start` with:
+
+```json
+{
+  "cwd": "/workspace/app",
+  "message": "Read this project's error-handling source and relevant tests. Identify missing cases, citing inspected file paths and evidence. Report files you could not inspect. Keep the review read-only."
+}
+```
+
+Call `discussion_read` with the returned IDs:
+
+```json
+{
+  "discussionId": "<returned discussionId>",
+  "turnId": "<returned turnId>",
+  "waitMs": 20000
+}
+```
+
+While `inProgress`, repeat the read without a cursor. After `completed`, retrieve
+all `nextCursor` pages as described below. Report other terminal statuses as such.
+
+### Review another project
+
+User request: "Review authentication in `../other-project` with Codex."
+Resolve that path against `/workspace/app` to obtain `/workspace/other-project`.
+An explicit `/workspace/other-project` request selects the same directory.
+Start a new discussion with:
+
+```json
+{
+  "cwd": "/workspace/other-project",
+  "message": "Read this project's authentication source and relevant tests. Report problems with inspected file paths and evidence, and identify files you could not inspect. Keep the review read-only."
+}
+```
+
+Read the returned discussion and turn using the polling and pagination procedure
+above. Keep these IDs separate from the current-project discussion's IDs.
+
+### Follow up in the same project
+
+Once the other-project turn is terminal, call `discussion_reply` using that
+discussion's ID:
+
+```json
+{
+  "discussionId": "<other-project discussionId>",
+  "message": "Read the relevant tests again and explain why they do not catch the authentication issue you identified. Cite file paths and evidence, and report any inspection limits. Keep the review read-only."
+}
+```
+
+This still reviews `/workspace/other-project`, even if the caller has since changed
+its own directory. Read the returned turn to completion and retrieve all pages.
+
 ## Model and effort selection
 
 Select the catalog entry's `model` value, not `id`. Supported effort strings come

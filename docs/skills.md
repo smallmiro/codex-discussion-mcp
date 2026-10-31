@@ -148,6 +148,50 @@ project's absolute path as `discussion_start.cwd`. Codex can inspect files there
 with read-only access. Advice from the discussion does not authorize additional
 changes or actions beyond your original request.
 
+### Choose a project and continue the review
+
+When you omit a directory, the skill tells the agent to use its current working
+directory and pass that absolute path as `discussion_start.cwd`. For example:
+
+```text
+/codex-discussion Read this project's error-handling source and relevant tests.
+Report missing cases with inspected file paths and evidence. Identify files you
+could not inspect and keep the review read-only.
+```
+
+An explicit directory takes priority. Relative paths are resolved against the
+calling agent's current directory. If the agent is in `/workspace/app`, this
+request selects `/workspace/other-project`; an explicit absolute path selects the
+same location:
+
+```text
+/codex-discussion Review authentication in ../other-project. Read its relevant
+source and tests, cite inspected file paths and evidence, and report inspection
+limits. Keep the review read-only.
+```
+
+The selected directory must exist and be accessible in the MCP server's execution
+environment. The agent reports an unavailable target rather than selecting a
+different project. Merely mentioning a path in the discussion message does not
+set its working directory. Direct tool calls that omit `cwd` use `--cwd`, then
+the MCP process working directory, which may differ from the agent's project.
+The skill installation directory does not select the project.
+
+After the answer is complete, ask a follow-up using the existing discussion:
+
+```text
+Continue the same Codex discussion about other-project. Check why the existing
+tests do not catch the authentication issue you identified, citing file paths
+and evidence. Keep the review read-only.
+```
+
+`discussion_reply` retains the original discussion directory and has no `cwd`
+argument, even if the caller changes its own directory. Reviewing a different
+project starts a new discussion. The agent reads every returned turn until a
+terminal status and retrieves all remaining pages of a completed answer. See
+the [tool-call examples](../skills/codex-discussion/references/tools.md#project-directory-and-examples)
+for the exact start, read, and reply inputs.
+
 ## 4. Use the same skill in other agents
 
 Copy the same complete skill directory to one location supported by your host,

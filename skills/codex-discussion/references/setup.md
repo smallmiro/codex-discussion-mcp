@@ -47,7 +47,16 @@ If Codex is not on the host process's PATH, configure its absolute path:
 ```
 
 The host may start the MCP process outside the project. Pass the absolute project
-path in `discussion_start.cwd`, or configure `--cwd` on the server command.
+path in `discussion_start.cwd`. The skill selects the user's requested directory,
+or the calling agent's current working directory when none is specified. Resolve
+relative paths against the caller's current directory and confirm the directory
+exists and is accessible in the MCP server environment. Report an inaccessible
+target rather than falling back to another project.
+
+For direct tool calls that omit `cwd`, the server uses `--cwd`, then the MCP
+process working directory. You can configure `--cwd` as that server default, but
+it does not discover the caller's current project. See the
+[directory examples](tools.md#project-directory-and-examples) for explicit calls.
 
 ## Other MCP hosts
 
