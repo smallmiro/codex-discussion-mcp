@@ -20,6 +20,22 @@ If the tools are unavailable, or the user needs installation help, read
 succeeds; starting a discussion runs inference and consumes account usage.
 Installing the skill alone does not connect the MCP server.
 
+After `models_list`, inspect `update` in structured results or the JSON text
+fallback. When `update.status` is `available`, relay `currentVersion` →
+`latestVersion`, the release-notes link, and update/reconnect guidance in the
+user's language **once per newer version per session**. Remember which
+`latestVersion` values you have already relayed; do not repeat the notice on
+every tool call or turn. Older servers may omit `update`; continue normally.
+`unavailable` or `disabled` is not evidence that the installed version is current.
+
+Use the installation-specific instructions in [setup](references/setup.md):
+label a global npm command as global; project-local installs and pinned `npx`
+configurations need their own update procedure. Explain that copied skills need
+a separate refresh that preserves customizations. Deliver the notice without
+installing, editing configuration, reconnecting, or interrupting a discussion
+automatically. Notices are delivered through tool results and skill guidance;
+do not promise a desktop popup or guaranteed display in every host.
+
 ## Prepare the question
 
 Use a discussion when the user requests it or an independent assessment would

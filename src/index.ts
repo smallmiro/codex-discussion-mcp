@@ -8,6 +8,7 @@ import { DiscussionService } from './discussions.js';
 import { ModelCatalog } from './models.js';
 import { createServer } from './server.js';
 import { version } from './version.js';
+import { UpdateChecker } from './updates.js';
 
 async function main() {
   const { values } = parseArgs({
@@ -15,11 +16,12 @@ async function main() {
       help: { type: 'boolean', short: 'h' }, version: { type: 'boolean', short: 'v' },
       cwd: { type: 'string' }, 'codex-command': { type: 'string' },
       'codex-arg': { type: 'string', multiple: true },
+      'no-update-check': { type: 'boolean' },
     },
     strict: true, allowPositionals: false,
   });
   if (values.help) {
-    process.stdout.write(`codex-discussion-mcp ${version}\n\nUsage: codex-discussion-mcp [options]\n\n  --cwd <absolute-path>  Default project directory\n  --codex-command <path> Codex executable (default: CODEX_DISCUSSION_CODEX_PATH or codex)\n  --codex-arg <value>    Override app-server arguments; repeat for each argument\n  --help, -h            Show this help\n  --version, -v         Show version\n\nUses stdio MCP. Requires Node >=22.14 and a logged-in Codex CLI.\nFirst call models_list, then discussion_start/reply and discussion_read.\n`);
+    process.stdout.write(`codex-discussion-mcp ${version}\n\nUsage: codex-discussion-mcp [options]\n\n  --cwd <absolute-path>  Default project directory\n  --codex-command <path> Codex executable (default: CODEX_DISCUSSION_CODEX_PATH or codex)\n  --codex-arg <value>    Override app-server arguments; repeat for each argument\n  --no-update-check     Disable npm version checks (or CODEX_DISCUSSION_UPDATE_CHECK=0)\n  --help, -h            Show this help\n  --version, -v         Show version\n\nUses stdio MCP. Requires Node >=22.14 and a logged-in Codex CLI.\nFirst call models_list, then discussion_start/reply and discussion_read.\n`);
     return;
   }
   if (values.version) { process.stdout.write(`${version}\n`); return; }
@@ -31,13 +33,16 @@ async function main() {
   });
   const catalog = new ModelCatalog(rpc);
   const service = new DiscussionService(rpc, catalog, { cwd: resolve(cwd) });
-  const handle = serveStdio(() => createServer(service, catalog), {
+  const updates = new UpdateChecker({ enabled: !values['no-update-check'] && process.env.CODEX_DISCUSSION_UPDATE_CHECK !== '0' });
+  void updates.check();
+  const handle = serveStdio(() => createServer(service, catalog, updates), {
     onerror: error => { process.stderr.write(`MCP protocol error: ${error.message}\n`); },
   });
   let closing = false;
   const shutdown = async () => {
     if (closing) return;
     closing = true;
+    updates.close();
     await service.close();
     await handle.close();
     process.exit(0);

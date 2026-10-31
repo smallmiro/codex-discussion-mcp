@@ -4,6 +4,7 @@ import { DiscussionService } from './discussions.js';
 import { errorResult } from './errors.js';
 import { ModelCatalog } from './models.js';
 import { version } from './version.js';
+import type { UpdateChecker } from './updates.js';
 
 const identifier = z.string().min(1).max(256);
 const message = z.string().min(1).max(1_000_000).refine(value => !!value.trim(), 'message cannot be blank');
@@ -22,16 +23,19 @@ async function safe(action: () => Promise<unknown>): Promise<CallToolResult> {
   }
 }
 
-export function createServer(service: DiscussionService, catalog: ModelCatalog) {
+export function createServer(service: DiscussionService, catalog: ModelCatalog, updates?: Pick<UpdateChecker, 'check'>) {
   const server = new McpServer({ name: 'codex-discussion', version }, {
     instructions: 'Discuss with Codex as an independent coding partner. First call models_list to discover models and supported effort levels. Choose model and effort based on complexity. discussion_start/reply return immediately; call discussion_read repeatedly until a terminal status. Supply all context Codex needs; your own conversation is not shared automatically. Use an absolute cwd for the project. Codex discussions are read-only.',
   });
   server.registerTool('models_list', {
     title: 'Discover Codex models and effort levels',
-    description: 'Call first to fetch the current Codex model catalog with descriptions, default model, default effort and supported effort descriptions. No inference is run. Catalog entries do not guarantee account/provider inference access.',
+    description: 'Call first to fetch the current Codex model catalog with descriptions, default model, default effort and supported effort descriptions. No inference is run. Catalog entries do not guarantee account/provider inference access. Includes package update status; relay an available update once per newer version per session in the user language. Updating and reconnecting are user actions.',
     inputSchema: z.object({ includeHidden: z.boolean().optional().describe('Include models hidden from the default picker.') }).strict(),
     annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: true },
-  }, input => safe(() => catalog.list(input.includeHidden)));
+  }, input => safe(async () => {
+    const [result, update] = await Promise.all([catalog.list(input.includeHidden), updates?.check()]);
+    return { ...result, ...(update ? { update } : {}) };
+  }));
 
   server.registerTool('discussion_start', {
     title: 'Start a discussion with Codex',

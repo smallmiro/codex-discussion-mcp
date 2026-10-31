@@ -59,6 +59,62 @@ This command waits for requests as a stdio MCP server. You do not type questions
 into it like a terminal chat command; the MCP host connects to the server and
 calls its tools.
 
+## Version checks and updates
+
+The server checks the public npm `latest` metadata for this package automatically
+in the background at startup. `models_list` returns an additive `update` object
+in both structured results and the JSON text used by legacy hosts. Its status is
+`available`, `current` (the checked stable version is no newer than the running
+version), `unavailable`, or `disabled`. An available update includes
+`currentVersion`, `latestVersion`, `releaseNotesUrl`, and a notice with update and
+reconnect instructions. Failed checks are `unavailable`, never proof that your
+installation is current. Model catalog metadata, including `accessVerified:
+false`, keeps its existing meaning.
+
+Checks fetch version metadata only, with a **1500 ms network deadline** covering
+headers and body, and coalesce concurrent requests within one MCP process.
+Successful and failed checks are cached for **24 hours**, including across
+process restarts. Only version/check metadata is saved in
+`codex-discussion-mcp/update.json` under the user's cache directory:
+
+- Linux: `$XDG_CACHE_HOME`, if absolute; otherwise `~/.cache`.
+- macOS: `~/Library/Caches`.
+- Windows: `%LOCALAPPDATA%`, otherwise `~/AppData/Local`.
+
+Cache errors are ignored; an in-memory cache still prevents repeated lookups in
+that process. Startup and discussion submission, polling and cancellation do not
+wait for npm. `models_list` waits for the bounded check alongside Codex discovery.
+Offline or malformed registry responses do not prevent use of the tools.
+`--help` and `--version` never request npm metadata.
+
+To disable checks, add `--no-update-check` to the server's arguments or set
+`CODEX_DISCUSSION_UPDATE_CHECK=0` in its environment. Either disables both network
+checks and update cache reads/writes. For example:
+
+```json
+{ "command": "codex-discussion-mcp", "args": ["--no-update-check"] }
+```
+
+The portable skill relays an available-update notice in the user's language once
+per newer version per session. Delivery uses tool results and agent instructions;
+desktop popups and display by every host are not guaranteed.
+
+Choose the update procedure for the installation the MCP host actually uses:
+
+| Installation | User action |
+|---|---|
+| Global npm installation | Run `npm install -g @mirolab/codex-discussion-mcp@latest`. |
+| Project-local npm installation | In the installation's project, run `npm install @mirolab/codex-discussion-mcp@latest`, preserving your dependency/devDependency convention. |
+| Version-pinned `npx` configuration | Change the configured `@mirolab/codex-discussion-mcp@VERSION` argument to the desired newer version. A global install does not change that pin. |
+
+After updating, **reconnect/restart the MCP server through the host** so it loads
+the new package. The server never installs code or dependencies, rewrites MCP
+configuration, restarts itself, runs inference for checks, or interrupts an
+active discussion. Finish active work before reconnecting. Separately copied
+skills must be [refreshed separately](docs/skills.md#6-update-or-remove-the-skill);
+updating npm does not overwrite the copy or its customizations. See
+[release notes](https://github.com/smallmiro/codex-discussion-mcp/releases).
+
 ## Register with Claude Code
 
 After installing globally, register it for all projects:
@@ -170,7 +226,7 @@ contain them.
 
 | Tool | Input | Result |
 |---|---|---|
-| `models_list` | `includeHidden?` | Model and effort catalog, retrieval time |
+| `models_list` | `includeHidden?` | Model and effort catalog, retrieval time, package update status |
 | `discussion_start` | `message`, `cwd?`, `model?`, `effort?` | New `discussionId`, `turnId`, selected settings, current status |
 | `discussion_reply` | `discussionId`, `message`, `model?`, `effort?` | New turn in the same conversation |
 | `discussion_read` | `discussionId`, `turnId?`, `cursor?`, `limit?`, `waitMs?` | Status, public messages, `nextCursor`, errors |

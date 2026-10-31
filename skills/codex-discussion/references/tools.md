@@ -109,6 +109,31 @@ There is no fixed model list or universal set of effort levels.
 `models_list` returns catalog metadata and `accessVerified: false`, not verified
 account entitlement. A model can be listed and still reject inference.
 
+### Package update information
+
+`models_list` also returns `update` in structured content and its legacy-readable
+JSON text. This is separate from Codex model discovery and never verifies model
+access. Older servers may omit it.
+
+| Field | Meaning |
+|---|---|
+| `currentVersion` | Package version running in the MCP process. |
+| `status` | `available`, `current` (checked latest is no newer), `unavailable`, or `disabled`. |
+| `checkedAt` | ISO timestamp of the check, including failed checks; absent when disabled. |
+| `latestVersion` | Valid stable npm latest version when known. |
+| `releaseNotesUrl`, `notice` | Present only for a newer stable version; include update/reconnect guidance. |
+
+Relay an available notice in the user's language once per `latestVersion` per
+session, including the release-notes link. Do not treat a failed check as proof
+of being current. Checks coalesce within a process, use a 1500 ms network timeout
+including response bodies, and cache success/failure metadata for 24 hours across
+restarts. Cache errors are best effort; other discussion tools do not wait for
+npm. `--help` and `--version` never check. Disable network and cache activity with
+`--no-update-check` or `CODEX_DISCUSSION_UPDATE_CHECK=0` in the server environment.
+See [setup](setup.md#updates-and-automatic-checks) for cache locations and global,
+project-local and pinned `npx` upgrade instructions, reconnecting, and copied
+skill refreshes. Do not perform those actions automatically.
+
 ## Reading complete output
 
 `discussion_start` and `discussion_reply` return before generation finishes. Keep

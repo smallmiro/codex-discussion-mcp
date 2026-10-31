@@ -54,7 +54,7 @@ try {
   const fixture = join(temp, 'fixture.mjs');
   await copyFile(join(root, 'tests', 'fixtures', 'app-server.mjs'), fixture);
   client = new Client({ name: 'packed-install-verification', version: '1.0.0' }, { capabilities: {} });
-  const transport = new StdioClientTransport({ command: executable, args: ['--cwd', temp, '--codex-command', process.execPath, '--codex-arg', fixture], cwd: temp, stderr: 'pipe' });
+  const transport = new StdioClientTransport({ command: executable, args: ['--no-update-check', '--cwd', temp, '--codex-command', process.execPath, '--codex-arg', fixture], cwd: temp, stderr: 'pipe' });
   await client.connect(transport);
   assert.equal((await client.listTools()).tools.length, 5);
   const call = async (name, args) => {
@@ -62,7 +62,10 @@ try {
     assert.notEqual(result.isError, true, JSON.stringify(result));
     return result.structuredContent;
   };
-  assert.equal((await call('models_list', {})).models.length, 2);
+  const catalog = await call('models_list', {});
+  assert.equal(catalog.models.length, 2);
+  assert.equal(catalog.accessVerified, false);
+  assert.equal(catalog.update.status, 'disabled');
   const first = await call('discussion_start', { message: 'early packed question', model: 'alpha', effort: 'high' });
   const read = await call('discussion_read', { discussionId: first.discussionId });
   assert.equal(read.status, 'completed');

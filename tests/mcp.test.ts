@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn, execFile as execFileCallback } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -15,23 +15,101 @@ import { record } from '../src/protocol.js';
 const execFile = promisify(execFileCallback);
 const entry = fileURLToPath(new URL('../src/index.ts', import.meta.url));
 const fixture = fileURLToPath(new URL('./fixtures/app-server.mjs', import.meta.url));
-const args = ['--import', 'tsx', entry, '--codex-command', process.execPath, '--codex-arg', fixture];
+const registry = fileURLToPath(new URL('./fixtures/update-registry.mjs', import.meta.url));
+const args = ['--import', registry, '--import', 'tsx', entry, '--codex-command', process.execPath, '--codex-arg', fixture];
 
-async function connection(t: TestContext) {
-  const transport = new StdioClientTransport({ command: process.execPath, args, stderr: 'pipe' });
+async function connection(t: TestContext, options: { env?: Record<string, string>; extraArgs?: string[]; onStderr?: (text: string) => void } = {}) {
+  const env = { ...process.env, CODEX_DISCUSSION_UPDATE_CHECK: '0', ...options.env } as Record<string, string>;
+  const transport = new StdioClientTransport({ command: process.execPath, args: [...args, ...options.extraArgs ?? []], env, stderr: 'pipe' });
+  transport.stderr?.on('data', chunk => options.onStderr?.(String(chunk)));
   const client = new Client({ name: 'discussion-mcp-test', version: '1.0.0' }, { capabilities: {} });
   t.after(() => client.close());
   await client.connect(transport);
   return client;
 }
 
-test('CLI help and version work without starting Codex', async () => {
-  const help = await execFile(process.execPath, ['--import', 'tsx', entry, '--help', '--codex-command', '/nonexistent/codex']);
+test('CLI help and version work without starting Codex or requesting npm metadata', async () => {
+  const help = await execFile(process.execPath, ['--import', registry, '--import', 'tsx', entry, '--help', '--codex-command', '/nonexistent/codex'], { env: { ...process.env, CODEX_DISCUSSION_UPDATE_CHECK: '1' } });
   assert.match(help.stdout, /codex-discussion-mcp/);
-  const version = await execFile(process.execPath, ['--import', 'tsx', entry, '--version']);
+  assert.match(help.stdout, /--no-update-check/);
+  assert.equal(help.stderr, '');
+  const version = await execFile(process.execPath, ['--import', registry, '--import', 'tsx', entry, '--version'], { env: { ...process.env, CODEX_DISCUSSION_UPDATE_CHECK: '1' } });
   const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
   assert.equal(version.stdout.trim(), pkg.version);
+  assert.equal(version.stderr, '');
 });
+
+test('models_list adds update metadata in structured and text results without changing catalog semantics', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'codex-mcp-updates-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  let stderr = '';
+  const client = await connection(t, { env: { CODEX_DISCUSSION_UPDATE_CHECK: '1', XDG_CACHE_HOME: dir }, onStderr: text => { stderr += text; } });
+  const catalog = await client.callTool({ name: 'models_list', arguments: {} });
+  const data = record(catalog.structuredContent);
+  assert.equal(data.accessVerified, false);
+  assert.equal((data.models as unknown[]).length, 2);
+  assert.equal(typeof data.retrievedAt, 'string');
+  assert.equal(record(data.update).status, 'available');
+  assert.equal(record(data.update).latestVersion, '99.0.0');
+  assert.match(String(record(data.update).notice), /reconnect/);
+  const text = (catalog.content as Array<{ type: string; text: string }>).find(item => item.type === 'text')!.text;
+  assert.deepEqual(JSON.parse(text), data);
+  await client.callTool({ name: 'models_list', arguments: { includeHidden: true } });
+  assert.equal(stderr.match(/\[test registry lookup\]/g)?.length, 1);
+  await client.close();
+  const reconnected = await connection(t, { env: { CODEX_DISCUSSION_UPDATE_CHECK: '1', XDG_CACHE_HOME: dir, TEST_REGISTRY_MODE: 'offline' }, onStderr: text => { stderr += text; } });
+  const cached = record((await reconnected.callTool({ name: 'models_list', arguments: {} })).structuredContent);
+  assert.deepEqual(cached.update, data.update, 'persisted metadata must survive MCP process restart');
+  assert.equal(stderr.match(/\[test registry lookup\]/g)?.length, 1);
+});
+
+for (const optOut of ['environment', 'flag'] as const) {
+  test(`${optOut} opt-out disables registry requests and cache writes`, async t => {
+    const dir = await mkdtemp(join(tmpdir(), 'codex-mcp-disabled-'));
+    t.after(() => rm(dir, { recursive: true, force: true }));
+    let stderr = '';
+    const client = await connection(t, {
+      env: { CODEX_DISCUSSION_UPDATE_CHECK: optOut === 'environment' ? '0' : '1', XDG_CACHE_HOME: dir },
+      extraArgs: optOut === 'flag' ? ['--no-update-check'] : [], onStderr: text => { stderr += text; },
+    });
+    const data = record((await client.callTool({ name: 'models_list', arguments: {} })).structuredContent);
+    assert.equal(record(data.update).status, 'disabled');
+    assert.equal(stderr, '');
+    assert.deepEqual(await readdir(dir), []);
+  });
+}
+
+test('cache read and write errors leave models_list and discussions usable', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'codex-mcp-cache-errors-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await mkdir(join(dir, 'codex-discussion-mcp', 'update.json'), { recursive: true });
+  const client = await connection(t, { env: { CODEX_DISCUSSION_UPDATE_CHECK: '1', XDG_CACHE_HOME: dir } });
+  const data = record((await client.callTool({ name: 'models_list', arguments: {} })).structuredContent);
+  assert.equal(record(data.update).status, 'available');
+  assert.equal(data.accessVerified, false);
+  const first = record((await client.callTool({ name: 'discussion_start', arguments: { message: 'early' } })).structuredContent);
+  assert.equal(record((await client.callTool({ name: 'discussion_read', arguments: { discussionId: first.discussionId } })).structuredContent).status, 'completed');
+});
+
+for (const mode of ['offline', 'hang'] as const) {
+  test(`registry ${mode} leaves submissions, polling and cancellation usable`, async t => {
+    const dir = await mkdtemp(join(tmpdir(), 'codex-mcp-offline-'));
+    t.after(() => rm(dir, { recursive: true, force: true }));
+    const client = await connection(t, { env: { CODEX_DISCUSSION_UPDATE_CHECK: '1', XDG_CACHE_HOME: dir, TEST_REGISTRY_MODE: mode } });
+    let finished = false;
+    const catalog = client.callTool({ name: 'models_list', arguments: {} }).then(value => { finished = true; return value; });
+    const first = record((await client.callTool({ name: 'discussion_start', arguments: { message: 'hold' } })).structuredContent);
+    assert.equal(first.status, 'inProgress');
+    assert.equal(record((await client.callTool({ name: 'discussion_read', arguments: { discussionId: first.discussionId } })).structuredContent).status, 'inProgress');
+    await client.callTool({ name: 'discussion_cancel', arguments: { discussionId: first.discussionId, turnId: first.turnId } });
+    assert.equal(record((await client.callTool({ name: 'discussion_read', arguments: { discussionId: first.discussionId } })).structuredContent).status, 'interrupted');
+    if (mode === 'hang') assert.equal(finished, false, 'discussion tools must not await the registry');
+    const data = record((await catalog).structuredContent);
+    assert.equal(record(data.update).status, 'unavailable');
+    assert.equal(record(data.update).notice, undefined);
+    assert.equal(data.accessVerified, false);
+  });
+}
 
 test('MCP discovery exposes five tools with dynamic model and effort strings', async t => {
   const client = await connection(t);
@@ -87,7 +165,7 @@ for (const shutdown of ['stdin', 'SIGTERM'] as const) {
     const dir = await mkdtemp(join(tmpdir(), 'codex-mcp-lifecycle-'));
     t.after(() => rm(dir, { recursive: true, force: true }));
     const pidFile = join(dir, 'pid');
-    const child = spawn(process.execPath, [...args, `--codex-arg=--pid-file=${pidFile}`], { stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [...args, `--codex-arg=--pid-file=${pidFile}`], { env: { ...process.env, CODEX_DISCUSSION_UPDATE_CHECK: '1', XDG_CACHE_HOME: dir }, stdio: ['pipe', 'pipe', 'pipe'] });
     t.after(() => { if (child.exitCode === null) child.kill('SIGKILL'); });
     const pending = new Map<number, { resolve: (value: Record<string, unknown>) => void; reject: (error: Error) => void }>();
     let stderr = '';
@@ -111,7 +189,12 @@ for (const shutdown of ['stdin', 'SIGTERM'] as const) {
     const initialized = await request('initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'legacy-test', version: '1.0.0' } });
     assert.equal(record(initialized.result).protocolVersion, '2025-03-26');
     child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
-    await request('tools/call', { name: 'models_list', arguments: {} });
+    const result = record((await request('tools/call', { name: 'models_list', arguments: {} })).result);
+    const legacyText = (result.content as Array<{ text: string }>)[0]!.text;
+    const legacyCatalog = record(JSON.parse(legacyText));
+    assert.equal(legacyCatalog.accessVerified, false);
+    assert.equal(record(legacyCatalog.update).status, 'available');
+    assert.match(String(record(legacyCatalog.update).notice), /99\.0\.0/);
     const pid = Number(await readFile(pidFile, 'utf8'));
     const exited = once(child, 'exit');
     if (shutdown === 'stdin') child.stdin.end(); else child.kill(shutdown);
