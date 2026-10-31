@@ -1,10 +1,17 @@
 # Public npm publishing through GitHub Actions
 
-The current public release is `0.1.1`. See the release records for
-[0.1.0](releases/0.1.0.md) and [0.1.1](releases/0.1.1.md). Published versions
-cannot be republished. Both versions were published with the bootstrap token
-because no npm Trusted Publisher is configured yet; the `v0.1.1` OIDC run was
-rejected with `E404`. Set up the OIDC connection below before the next version.
+See the release records for [0.1.0](releases/0.1.0.md),
+[0.1.1](releases/0.1.1.md), and the [0.1.2 release preparation](releases/0.1.2.md).
+Check the public registry for the currently published version:
+
+```bash
+npm view @mirolab/codex-discussion-mcp version --registry=https://registry.npmjs.org/
+```
+
+Published versions cannot be republished. Versions `0.1.0` and `0.1.1` used the
+bootstrap token because no npm Trusted Publisher was configured at publication;
+the `v0.1.1` OIDC run was rejected with `E404`. Configure the OIDC connection below
+before relying on Trusted Publishing for another version.
 
 - GitHub: `smallmiro/codex-discussion-mcp`
 - npm organization: `mirolab`
@@ -36,7 +43,7 @@ Replace `RUN_ID` with an actual run ID from the list. You can install the
 downloaded package locally to check it even before it is published to npm.
 
 ```bash
-npm install -g ./release-artifacts/mirolab-codex-discussion-mcp-0.1.0.tgz
+npm install -g ./release-artifacts/mirolab-codex-discussion-mcp-0.1.2.tgz
 codex-discussion-mcp --help
 ```
 
@@ -130,13 +137,14 @@ If it expires, delete it and add it again.
 ## Publishing subsequent versions
 
 Commit the version change and tag to the repository, then publish a GitHub
-Release using a **`v` tag matching the package version**. For example, if the next
-version is `0.1.1`, use the tag `v0.1.1`.
+Release using a **`v` tag matching the package version**. Derive the release tag
+from the new version instead of reusing an already published version's tag.
 
 ```bash
 npm version patch
 git push origin main --follow-tags
-gh release create v0.1.1 --repo smallmiro/codex-discussion-mcp --generate-notes
+release_tag="v$(node -p 'require("./package.json").version')"
+gh release create "$release_tag" --repo smallmiro/codex-discussion-mcp --generate-notes
 ```
 
 The workflow checks out the tag, validates the name and version, runs tests,

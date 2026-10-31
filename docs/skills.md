@@ -81,9 +81,9 @@ project can be different repositories.
 
 ### From a globally installed npm package
 
-The published **`0.1.0` and `0.1.1` releases do not include the skill**. Packages
-built from this checkout include the skill and this manual. Until you install
-a release containing those files, use the checkout-based instructions above.
+The skill and this manual are included starting with **`0.1.2`**. The published
+`0.1.0` and `0.1.1` releases do not include them; use the checkout-based method
+above or install `0.1.2` or later before following the npm-copy instructions.
 
 After globally installing a package that contains the skill, confirm its files:
 
