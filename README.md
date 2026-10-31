@@ -26,7 +26,7 @@ from the `npm-package` artifact in GitHub Actions or build it locally.
 
 - Node.js **22.14 or later** and npm
 - [Codex CLI](https://developers.openai.com/codex/cli/) installed and signed in
-- Validated against the app-server protocol in Codex CLI **0.164.0**
+- Validated against the app-server protocol in Codex CLI **0.166.0**
 
 The server uses your existing Codex CLI login and model provider settings. You do
 not need to enter a separate OpenAI API key for the MCP server. Your provider's
