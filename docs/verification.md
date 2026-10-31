@@ -10,7 +10,7 @@ on Linux x64 with Node.js 22.22.0 and npm 11.12.1. This is an unreleased change
 to the `0.1.1` source; the published `0.1.0` and `0.1.1` artifacts do not contain
 the skill or manual.
 
-- `npm run check`: Passed type checking, all 48 tests, and the build.
+- `npm run check`: Passed type checking, all 49 tests, and the build.
 - `npm run verify:package`: Passed isolated production installation, exact
   content checks for the manual and all three skill files, executable checks,
   model discovery, and a two-turn discussion using the process fixture.
@@ -26,16 +26,57 @@ the skill or manual.
 - An independent read-only review found no actionable issues in the skill,
   manual, installation instructions, protocol guidance, or package verifier.
 
-An earlier skill-draft run failed the existing test
-`resume restores thread defaults and reads persisted public history only`
-once while the fixture parsed its JSON state file. The targeted rerun and
-subsequent full runs passed. This task does not change that fixture.
+The existing test `resume restores thread defaults and reads persisted public
+history only` failed intermittently in the earlier draft and initial push CI:
+the fixture could exit after truncating its JSON state file during a snapshot
+rewrite. A new deterministic regression terminated a fixture during a write and
+failed with `Unexpected end of JSON input` before the fix. The fixture now writes
+a sibling temporary file and renames it over the saved snapshot. The regression
+then passed, a fresh fixture read the previous snapshot, and the original resume
+test passed 10 consecutive runs. This changes test persistence only, not runtime
+protocol behavior.
 
-Host installation paths and invocation methods were checked against official
-documentation. Host UI discovery and automatic skill selection were not tested
-in live Claude Code, Codex, Cursor, Gemini CLI, Copilot, Antigravity, or Kiro
-sessions. No paid inference, npm publication, or runtime protocol changes were
-part of this documentation and packaging verification.
+[PR CI run 41166840927](https://github.com/smallmiro/codex-discussion-mcp/actions/runs/41166840927)
+and [push CI run 41166836387](https://github.com/smallmiro/codex-discussion-mcp/actions/runs/41166836387)
+both passed on Node.js 22 and 24 after the fixture fix, including the 49-test
+suite and isolated package verification. The earlier PR run's uploaded
+`npm-package` artifact was also downloaded and passed
+`npm run verify:package -- --tarball <downloaded-tarball>` locally.
+
+### Actual Claude Code Skill Test
+
+At the user's request, Claude Code **2.1.311** was tested with Codex CLI
+**0.166.0** using a freshly packed and production-installed candidate. The
+complete installed skill was copied into a temporary project's `.claude/skills/`
+directory, and the installed MCP executable was registered using
+`claude mcp add --transport stdio --scope project`. Existing Codex and Claude
+sign-ins were reused without reading or copying credential files.
+
+Claude Code ran in print mode with the `sonnet` alias (resolved to
+`claude-sonnet-5-5`), low effort, project settings, a strict explicit MCP
+configuration, and session persistence disabled. Only `Read`, `Skill`, and this
+server's MCP tools were allowed. The runs reported no permission denials.
+
+| Scenario | Observed result |
+|---|---|
+| Explicit `/codex-discussion` setup check | Skill advertised; MCP connected; `models_list` returned 8 entries with `accessVerified: false`; no Codex inference submission. |
+| Natural-language second-opinion request | One real Codex turn completed, but there was no `Skill` tool invocation. The harness assertion expecting automatic skill activation failed. |
+| Explicit request to invoke the skill | `Skill` invoked `codex-discussion`, followed by catalog discovery, `discussion_start` with absolute project `cwd`, and repeated reads through `completed`; all harness assertions passed. |
+
+Both live review turns used the dynamically discovered `gpt-6.1-sol` model with
+`low` effort. The explicit skill run observed two `inProgress` reads and then
+`completed` with `nextCursor: null`. The sample proposal incorrectly treated an
+accepted submission as a finished review; Codex rejected that proposal. The
+temporary project's input file remained unchanged.
+
+These two short Codex turns consumed real account usage. The test confirms
+installed-skill discovery, explicit invocation, and actual Claude-to-MCP-to-Codex
+execution. It does not guarantee automatic selection for every matching prompt,
+and it does not test interactive UI behavior, a live follow-up, active-turn
+cancellation, or other hosts. Host paths and invocation methods for Codex,
+Cursor, Gemini CLI, Copilot, Antigravity, and Kiro were checked against official
+documentation; their host-side skill behavior remains unverified here. No npm
+publication or product runtime change was made.
 
 ## Codex CLI 0.166.0 Compatibility Check
 

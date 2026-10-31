@@ -223,6 +223,12 @@ independently. Concurrently modifying the same conversation from multiple MCP
 processes is unsupported. Inference is not automatically retried after a
 connection closes or a request times out.
 
+## Roadmap
+
+- Add support for connecting to a remote Codex app-server, alongside the
+  currently supported local Codex connection. Remote connections are planned
+  and are not yet implemented.
+
 ## Development and validation
 
 See [AGENTS.md](AGENTS.md) for the repository map, behavioral contracts, validation

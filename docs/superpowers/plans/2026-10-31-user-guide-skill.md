@@ -36,5 +36,16 @@
 
 - [x] Add `docs/skills.md` to `package.json` and the existing packed-install verifier.
 - [x] Run `npm run check`, `npm run verify:package`, `npm pack --dry-run`, and `git diff --check`.
-- [x] Record the actual verification scope and results without claiming host UI or paid inference tests.
+- [x] Record the actual initial verification scope and results without claiming unperformed host or inference tests.
 - [x] Review the complete change against the issue before committing and preparing integration.
+
+## Task 3: Address CI evidence and the user's additional requests
+
+Ruling: CI twice reproduced an existing fixture snapshot-write race. Fixing
+test-only persistence is necessary to leave reliable verification for this
+change; product runtime behavior stays unchanged.
+
+- [x] Add a deterministic interrupted-write regression and observe it fail before the fixture fix.
+- [x] Write fixture snapshots through a sibling temporary file and atomic rename; verify 49 tests, 10 resume repetitions, and Node.js 22/24 CI pass.
+- [x] At the user's request, test the installed skill and actual MCP in Claude Code with an isolated project, including real Codex inference; record observed automatic-selection limits.
+- [x] At the user's request, add a README roadmap entry for future remote Codex connections without implying current support.
