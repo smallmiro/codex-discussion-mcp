@@ -222,4 +222,20 @@ responses and the deterministic app-server fixture. Public registry access, live
 inference, individual host notice display and a new npm release were not part of
 this verification. Package version remains 0.1.2; publication is a separate task.
 
+## npm 0.1.3 Release Verification (2026-10-31)
+
+[0.1.3](releases/0.1.3.md) is publicly available as npm `latest`. Release
+preparation passed `npm run check` (64 tests, type checking and build),
+`npm run verify:package`, dry-run packing and whitespace checks. Release PR CI
+passed on Node.js 22 and 24; the publishing workflow repeated the checks and
+verified its exact tarball before upload.
+
+The public registry metadata, public tarball and successful publishing workflow
+artifact match in integrity and bytes. A fresh installation by package name and
+exact version used an empty cache, empty npm configuration and no token-related
+environment variables. CLI help/version, shipped guide contents and the public
+tarball's fixture-backed MCP behavior passed. Full identities, workflow links,
+the OIDC failure and successful token fallback are recorded in the release record.
+No new live inference was run; OIDC publication remains unverified.
+
 Future verification runs and artifacts are available in [GitHub Actions](https://github.com/smallmiro/codex-discussion-mcp/actions).
