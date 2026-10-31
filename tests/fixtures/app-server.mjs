@@ -5,6 +5,7 @@ let initialized = false;
 let notified = false;
 const waiting = new Map();
 const requests = [];
+const readErrors = new Map();
 let armedReadNotification;
 const pidFile = process.argv.find(arg => arg.startsWith('--pid-file='))?.slice('--pid-file='.length);
 if (pidFile) writeFileSync(pidFile, String(process.pid));
@@ -51,6 +52,13 @@ createInterface({ input: process.stdin }).on('line', async line => {
     notified = initialized;
   } else if (!initialized || !notified) {
     send({ id, error: { code: -32000, message: 'Not initialized' } });
+  } else if (method === 'test/readErrors') {
+    readErrors.set(params.threadId, params.errors);
+    reply(id, {});
+  } else if (readErrors.get(params.threadId)?.[0]?.method === method
+    && (method !== 'thread/read' || readErrors.get(params.threadId)[0].includeTurns === params.includeTurns)) {
+    const { code, message } = readErrors.get(params.threadId).shift();
+    send({ id, error: { code, message } });
   } else if (method === 'test/echo') {
     setTimeout(() => reply(id, params), params.delay ?? 0);
   } else if (method === 'test/split') {
@@ -105,6 +113,14 @@ createInterface({ input: process.stdin }).on('line', async line => {
     thread.model = params.model;
     thread.reasoningEffort = params.effort;
     thread.status = { type: 'active', activeFlags: [] };
+    if (process.argv.includes('--startup-read-errors')) {
+      readErrors.set(thread.id, [
+        { method: 'thread/read', includeTurns: false, code: -32603,
+          message: 'failed to read thread: thread-store internal error: failed to read session metadata /tmp/session.jsonl: rollout at /tmp/session.jsonl is empty' },
+        { method: 'thread/turns/list', code: -32601, message: 'list_turns is not supported yet' },
+        { method: 'thread/read', includeTurns: true, code: -32601, message: 'list_turns is not supported yet' },
+      ]);
+    }
     notify('turn/started', { threadId: thread.id, turn: { ...turn, items: [] } });
     if (text.startsWith('early')) complete(thread, turn);
     reply(id, { turn: { id: turn.id, status: 'inProgress', items: [] } });

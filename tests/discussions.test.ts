@@ -234,3 +234,125 @@ test('freshness checks fall back when a new live thread has no paginated history
   assert.equal(latest.turnId, external.turnId);
   assert.ok(latest.messages.some(message => message.text === 'External answer'));
 });
+
+for (const submission of ['start', 'reply']) {
+  test(`reads survive all startup RPC failures after ${submission} without replaying inference`, async t => {
+    const { service, rpc } = discussionClient(t, ['--startup-read-errors']);
+    let active = await service.start({ message: 'hold' });
+    if (submission === 'reply') {
+      await rpc.request('test/complete', { threadId: active.discussionId });
+      await rpc.request('test/readErrors', { threadId: active.discussionId, errors: [] });
+      active = await service.reply({ discussionId: active.discussionId, message: 'hold' });
+    }
+    const first = await service.read({ discussionId: active.discussionId, turnId: active.turnId });
+    assert.equal(first.status, 'inProgress');
+    assert.equal(first.messages[0]?.text, 'hold');
+
+    // Output arriving during freshness checks must remain visible even when the
+    // paginated read and its inline-history fallback both fail.
+    await rpc.request('test/armReadNotification', {
+      threadId: active.discussionId, turnId: active.turnId,
+      itemId: `assistant-${active.turnId}`, delta: 'Partial answer',
+    });
+    const partial = await service.read({ discussionId: active.discussionId, waitMs: 20_000 });
+    assert.equal(partial.status, 'inProgress');
+    assert.ok(partial.messages.some(message => message.text === 'Partial answer'));
+    await rpc.request('test/complete', { threadId: active.discussionId, text: 'Full authoritative answer' });
+    const completed = await service.read({ discussionId: active.discussionId });
+    assert.equal(completed.status, 'completed');
+    assert.deepEqual(completed.messages.filter(message => message.role === 'assistant').map(message => message.text), ['Full authoritative answer']);
+    const requests = await rpc.request<Array<{ method: string }>>('test/requests', {});
+    assert.equal(requests.filter(request => request.method === 'turn/start').length, submission === 'start' ? 1 : 2);
+
+    await rpc.request('test/externalStart', { threadId: active.discussionId });
+    await assert.rejects(service.read({ discussionId: active.discussionId }), { code: 'DISCUSSION_BUSY' });
+  });
+}
+
+const emptyRollout = 'failed to read thread: thread-store internal error: failed to read session metadata /tmp/session.jsonl: rollout at /tmp/session.jsonl is empty';
+const noTurns = { method: 'thread/turns/list', code: -32601, message: 'list_turns is not supported yet' };
+const inlineNoTurns = { method: 'thread/read', includeTurns: true, code: -32601, message: 'list_turns is not supported yet' };
+
+test('owned running turns tolerate an unavailable inline-history fallback', async t => {
+  const { service, rpc } = discussionClient(t);
+  const active = await service.start({ message: 'hold' });
+  await rpc.request('test/readErrors', { threadId: active.discussionId, errors: [noTurns, inlineNoTurns] });
+  const read = await service.read({ discussionId: active.discussionId });
+  assert.equal(read.status, 'inProgress');
+  assert.equal(read.messages[0]?.text, 'hold');
+});
+
+test('owned running turns still report non-transient read errors', async t => {
+  const { service, rpc } = discussionClient(t);
+  const active = await service.start({ message: 'hold' });
+  for (const failure of [
+    { method: 'thread/read', includeTurns: false, code: -32603, message: 'Authentication failed' },
+    { method: 'thread/read', includeTurns: false, code: -32603, message: 'failed to read thread: permission denied' },
+    { method: 'thread/read', includeTurns: false, code: -32601, message: 'Unknown method thread/read' },
+    { method: 'thread/read', includeTurns: false, code: -32001, message: emptyRollout },
+    { method: 'thread/turns/list', code: -32603, message: 'Provider unavailable' },
+    { method: 'thread/read', includeTurns: true, code: -32603, message: 'Invalid session metadata' },
+  ]) {
+    await rpc.request('test/readErrors', {
+      threadId: active.discussionId, errors: failure.includeTurns ? [noTurns, failure] : [failure],
+    });
+    await assert.rejects(service.read({ discussionId: active.discussionId }), {
+      code: 'APP_SERVER_ERROR', message: failure.message, details: { rpcCode: failure.code },
+    });
+  }
+});
+
+test('a startup error in the inline fallback does not hide an unknown listing failure', async t => {
+  const { service, rpc } = discussionClient(t);
+  const active = await service.start({ message: 'hold' });
+  await rpc.request('test/readErrors', { threadId: active.discussionId, errors: [
+    { method: 'thread/turns/list', code: -32601, message: 'Unknown method thread/turns/list' }, inlineNoTurns,
+  ] });
+  await assert.rejects(service.read({ discussionId: active.discussionId }), {
+    code: 'APP_SERVER_ERROR', message: 'Unknown method thread/turns/list', details: { rpcCode: -32601 },
+  });
+  // An unsupported paginated API must still be allowed to use working inline history.
+  await rpc.request('test/readErrors', { threadId: active.discussionId, errors: [
+    { method: 'thread/turns/list', code: -32601, message: 'Unknown method thread/turns/list' },
+  ] });
+  assert.equal((await service.read({ discussionId: active.discussionId })).status, 'inProgress');
+});
+
+test('historical reads do not inherit the startup exception from an owned running reply', async t => {
+  const { service, rpc } = discussionClient(t);
+  const first = await service.start({ message: 'early' });
+  const page = await service.read({ discussionId: first.discussionId, limit: 1 });
+  assert.ok(page.nextCursor);
+  await service.reply({ discussionId: first.discussionId, message: 'hold' });
+  for (const selection of [{ turnId: first.turnId }, { cursor: page.nextCursor! }]) {
+    await rpc.request('test/readErrors', { threadId: first.discussionId, errors: [
+      { method: 'thread/read', includeTurns: false, code: -32603, message: emptyRollout },
+    ] });
+    await assert.rejects(service.read({ discussionId: first.discussionId, ...selection }), {
+      code: 'APP_SERVER_ERROR', message: emptyRollout, details: { rpcCode: -32603 },
+    });
+  }
+  assert.equal((await service.read({ discussionId: first.discussionId, turnId: first.turnId })).status, 'completed');
+});
+
+test('startup errors still surface for completed local turns and resumed history', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'codex-discussion-startup-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const args = [`--state-file=${join(dir, 'state.json')}`];
+  const original = discussionClient(t, args);
+  const completed = await original.service.start({ message: 'early' });
+  const resumed = discussionClient(t, args);
+  assert.equal((await resumed.service.read({ discussionId: completed.discussionId })).status, 'completed');
+  for (const { service, rpc } of [original, resumed]) {
+    for (const errors of [
+      [{ method: 'thread/read', includeTurns: false, code: -32603, message: emptyRollout }],
+      [noTurns, inlineNoTurns],
+    ]) {
+      await rpc.request('test/readErrors', { threadId: completed.discussionId, errors });
+      const failure = errors.at(-1)!;
+      await assert.rejects(service.read({ discussionId: completed.discussionId }), {
+        code: 'APP_SERVER_ERROR', message: failure.message, details: { rpcCode: failure.code },
+      });
+    }
+  }
+});

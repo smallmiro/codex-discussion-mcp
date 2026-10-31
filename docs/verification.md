@@ -2,6 +2,28 @@
 
 Verification date: 2026-10-25. Version: `@mirolab/codex-discussion-mcp@0.1.0`.
 
+## Startup Read Window Fix (2026-10-31)
+
+Validation for [issue #13](https://github.com/smallmiro/codex-discussion-mcp/issues/13)
+on Linux x64 with Node.js 22.22.0 and Codex CLI 0.166.0:
+
+- `npm run check`: passed type checking, all 71 tests, and the build.
+- Regression tests reproduced the empty-rollout metadata error and the unavailable
+  paginated/inline-history errors before the fix. Immediate reads after start and
+  reply now retain partial output and reach completion with the full answer,
+  without replaying inference.
+- Negative cases cover unrelated errors, completed/resumed history, historical
+  turn IDs and cursors while a reply is running, and foreign activity after recovery.
+  A failed inline fallback preserves an unknown listing error; working legacy
+  inline history remains supported.
+- An independent read-only review identified the historical-turn scope and
+  unknown-listing-error cases. Both were reproduced with failing tests, fixed,
+  and included in the passing 71-test suite.
+- `npm run smoke -- --inference`: passed immediate reads, completed turns using
+  `gpt-6.1-sol` / `low` and `gpt-6-luna` / `medium`, and persisted history after
+  reconnecting. The timing-dependent startup window is covered deterministically
+  by the process fixture; a successful live run does not prove it hit that window.
+
 ## Skill and User Manual Verification
 
 On 2026-10-31, the skill and manual changes for
