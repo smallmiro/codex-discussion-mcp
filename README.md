@@ -17,7 +17,7 @@ the discussion and can choose a model and reasoning effort for each question.
 - Resume in a later session using a conversation ID saved by Codex
 - Explore projects with read-only access and exchange public messages
 
-[Skill user manual](docs/skills.md) · [Agent skill](skills/codex-discussion/SKILL.md)
+[Skill user manual](https://github.com/smallmiro/codex-discussion-mcp/blob/main/docs/skills.md) · [Agent skill](skills/codex-discussion/SKILL.md)
 
 The package name is `@mirolab/codex-discussion-mcp`. Install the version published
 to npm with the commands below. To use an unpublished version, install the `.tgz`
@@ -188,7 +188,7 @@ such as `--codex-arg=--some-option`.
 
 For a reusable user guide, install the optional
 [Codex Discussion skill](skills/codex-discussion/SKILL.md) using the
-[skill user manual](docs/skills.md).
+[skill user manual](https://github.com/smallmiro/codex-discussion-mcp/blob/main/docs/skills.md).
 
 > First, query codex-discussion for the available models and supported effort levels.
 > Choose a model and effort suited to the question's complexity, and discuss the
@@ -206,21 +206,28 @@ each agent's project guidelines:
 
 The optional `codex-discussion` skill guides agents through connection checks,
 question preparation, model selection, complete response retrieval, and
-counterarguments. Register the MCP server separately, then copy the **complete**
-skill directory, including `references/`, into your host's skill location.
-From this checkout, a personal Claude Code installation is:
+counterarguments. Register the MCP server separately, then run this from the
+project where you want to use the skill and select your coding agents:
 
 ```bash
-mkdir -p "$HOME/.claude/skills"
-cp -R ./skills/codex-discussion "$HOME/.claude/skills/"
+npx skills add smallmiro/codex-discussion-mcp --skill codex-discussion
 ```
 
-Check for an existing same-name skill before copying. In Claude Code, invoke
-`/codex-discussion` with your question; in Codex, mention `$codex-discussion`.
-The [user manual](docs/skills.md) covers project scope, npm-based installation,
-other hosts, example prompts, updates/removal, and troubleshooting. The skill and
-manual are included starting with `0.1.2`; published `0.1.0` and `0.1.1` do not
-contain them.
+For a global installation across your local projects, add `-g`:
+
+```bash
+npx skills add smallmiro/codex-discussion-mcp --skill codex-discussion -g
+```
+
+Installing the skill does not install or register the MCP server. In Claude
+Code, invoke `/codex-discussion` with your question; in Codex, mention
+`$codex-discussion`.
+
+See the [skill installation and usage guide](https://github.com/smallmiro/codex-discussion-mcp/blob/main/docs/skills.md)
+for manual installation, supported hosts, example prompts, updates/removal, and
+troubleshooting. When copying manually, include the **complete** skill directory
+and its `references/` files. The skill and manual are included in the npm package
+starting with `0.1.2`; published `0.1.0` and `0.1.1` do not contain them.
 
 ## MCP tools
 
