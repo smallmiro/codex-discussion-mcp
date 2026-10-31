@@ -52,7 +52,7 @@ You can also run it without a global installation. Register this command in your
 MCP configuration:
 
 ```bash
-npx -y @mirolab/codex-discussion-mcp@0.1.0
+npx -y @mirolab/codex-discussion-mcp@0.1.2
 ```
 
 This command waits for requests as a stdio MCP server. You do not type questions
@@ -72,7 +72,7 @@ Register without a global installation:
 
 ```bash
 claude mcp add --transport stdio --scope user codex-discussion -- \
-  npx -y @mirolab/codex-discussion-mcp@0.1.0
+  npx -y @mirolab/codex-discussion-mcp@0.1.2
 ```
 
 To share the configuration at the project level, replace `--scope user` with
@@ -93,7 +93,7 @@ configuration file.
   "mcpServers": {
     "codex-discussion": {
       "command": "npx",
-      "args": ["-y", "@mirolab/codex-discussion-mcp@0.1.0"]
+      "args": ["-y", "@mirolab/codex-discussion-mcp@0.1.2"]
     }
   }
 }
@@ -162,8 +162,9 @@ cp -R ./skills/codex-discussion "$HOME/.claude/skills/"
 Check for an existing same-name skill before copying. In Claude Code, invoke
 `/codex-discussion` with your question; in Codex, mention `$codex-discussion`.
 The [user manual](docs/skills.md) covers project scope, npm-based installation,
-other hosts, example prompts, updates/removal, and troubleshooting. Published
-`0.1.0` and `0.1.1` do not contain the skill; packages built from this checkout do.
+other hosts, example prompts, updates/removal, and troubleshooting. The skill and
+manual are included starting with `0.1.2`; published `0.1.0` and `0.1.1` do not
+contain them.
 
 ## MCP tools
 
