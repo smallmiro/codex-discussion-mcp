@@ -1,16 +1,17 @@
 # Public npm publishing through GitHub Actions
 
-The current public release is `0.1.3`. See the release records for
+The current public release is `0.1.4`. See the release records for
 [0.1.0](releases/0.1.0.md), [0.1.1](releases/0.1.1.md),
-[0.1.2](releases/0.1.2.md), and [0.1.3](releases/0.1.3.md).
+[0.1.2](releases/0.1.2.md), [0.1.3](releases/0.1.3.md), and
+[0.1.4](releases/0.1.4.md).
 Check the public registry for the published version:
 
 ```bash
 npm view @mirolab/codex-discussion-mcp version --registry=https://registry.npmjs.org/
 ```
 
-Published versions cannot be republished. All four versions used the existing
-bootstrap token. The `v0.1.1`, `v0.1.2`, and `v0.1.3` OIDC runs were rejected with `E404`;
+Published versions cannot be republished. All five versions used the existing
+bootstrap token. The `v0.1.1`, `v0.1.2`, `v0.1.3`, and `v0.1.4` OIDC runs were rejected with `E404`;
 actual OIDC publication remains unverified. Configure the OIDC connection below
 before relying on Trusted Publishing for another version.
 
@@ -44,7 +45,7 @@ Replace `RUN_ID` with an actual run ID from the list. You can install the
 downloaded package locally to check it even before it is published to npm.
 
 ```bash
-npm install -g ./release-artifacts/mirolab-codex-discussion-mcp-0.1.3.tgz
+npm install -g ./release-artifacts/mirolab-codex-discussion-mcp-0.1.4.tgz
 codex-discussion-mcp --help
 ```
 
