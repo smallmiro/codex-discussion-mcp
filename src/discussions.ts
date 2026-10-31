@@ -45,6 +45,13 @@ function statusOf(value: unknown): TurnStatus {
   throw new DiscussionError('PROTOCOL_ERROR', 'Unrecognized app-server turn status.');
 }
 
+function isStartupReadError(error: unknown): boolean {
+  return error instanceof DiscussionError && error.code === 'APP_SERVER_ERROR' && (
+    (error.details?.rpcCode === -32601 && error.message === 'list_turns is not supported yet') ||
+    (error.details?.rpcCode === -32603 && /^failed to read thread: thread-store internal error: failed to read session metadata .+: rollout at .+ is empty$/.test(error.message))
+  );
+}
+
 export class DiscussionService {
   private discussions = new Map<string, DiscussionState>();
   private loading = new Map<string, Promise<DiscussionState>>();
@@ -109,7 +116,7 @@ export class DiscussionService {
     const state = await this.load(input.discussionId);
     const observed = state.turns.get(input.turnId ?? cursor?.turnId ?? state.latestTurnId ?? '');
     const observedVersion = observed?.version;
-    await this.refreshReadState(state);
+    await this.refreshReadState(state, input.turnId ?? cursor?.turnId);
     const turn = await this.findTurn(state, input.turnId ?? cursor?.turnId);
     const position = cursor ?? { discussionId: state.id, turnId: turn.id, kind: turn.live ? 'live' as const : 'history' as const, offset: 0, textOffset: 0 };
     if (turn.live && position.kind !== 'live') throw new DiscussionError('INVALID_CURSOR', 'Cursor does not refer to a live message page. Retry without a cursor.');
@@ -226,7 +233,7 @@ export class DiscussionService {
     throw new DiscussionError('TURN_NOT_FOUND', 'Requested turn was not found in this discussion.');
   }
 
-  private async refreshReadState(state: DiscussionState) {
+  private async refreshReadState(state: DiscussionState, requestedTurnId?: string) {
     // Keep already received output usable after loss, but never treat a connected cache
     // as evidence that no other client has started work on the persisted thread.
     if (!this.connected) return;
@@ -247,7 +254,14 @@ export class DiscussionService {
         if (!(error instanceof DiscussionError) || error.details?.rpcCode !== -32601) throw error;
         // Newly started live threads may not expose paginated history yet. The
         // supported legacy read hydrates their current turns without inference.
-        const full = record(await this.rpc.request('thread/read', { threadId: state.id, includeTurns: true }));
+        let full: Record<string, unknown>;
+        try {
+          full = record(await this.rpc.request('thread/read', { threadId: state.id, includeTurns: true }));
+        } catch (inlineError) {
+          // A startup failure in the fallback must not hide an unrelated error
+          // from the paginated API. Successful legacy fallback remains supported.
+          throw isStartupReadError(inlineError) && !isStartupReadError(error) ? error : inlineError;
+        }
         const turns = record(full.thread).turns;
         if (!Array.isArray(turns)) throw new DiscussionError('PROTOCOL_ERROR', 'Invalid inline thread history response.');
         latest = record(turns.at(-1));
@@ -274,6 +288,9 @@ export class DiscussionService {
         if ('reasoningEffort' in thread) state.effort = typeof thread.reasoningEffort === 'string' ? thread.reasoningEffort : undefined;
       }
     } catch (error) {
+      // A newly submitted turn can emit events before its rollout/history is
+      // readable. Keep the owned turn observable without hiding other failures.
+      if (ownedActiveId && (!requestedTurnId || requestedTurnId === ownedActiveId) && isStartupReadError(error)) return;
       if (this.connected) throw error;
     }
   }
