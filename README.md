@@ -17,6 +17,8 @@ the discussion and can choose a model and reasoning effort for each question.
 - Resume in a later session using a conversation ID saved by Codex
 - Explore projects with read-only access and exchange public messages
 
+[Skill user manual](docs/skills.md) · [Agent skill](skills/codex-discussion/SKILL.md)
+
 The package name is `@mirolab/codex-discussion-mcp`. Install the version published
 to npm with the commands below. To use an unpublished version, install the `.tgz`
 from the `npm-package` artifact in GitHub Actions or build it locally.
@@ -128,6 +130,10 @@ such as `--codex-arg=--some-option`.
 
 ## Ask your agent
 
+For a reusable user guide, install the optional
+[Codex Discussion skill](skills/codex-discussion/SKILL.md) using the
+[skill user manual](docs/skills.md).
+
 > First, query codex-discussion for the available models and supported effort levels.
 > Choose a model and effort suited to the question's complexity, and discuss the
 > strengths and weaknesses of the current design with Codex. Exchange
@@ -139,6 +145,25 @@ each agent's project guidelines:
 > Before major architecture decisions, get an independent review through codex-discussion.
 > Query models_list first, then choose a model and supported effort suited to the question.
 > Share your position and evidence, consider counterarguments, and explain the reasons for the final decision.
+
+## User guide skill
+
+The optional `codex-discussion` skill guides agents through connection checks,
+question preparation, model selection, complete response retrieval, and
+counterarguments. Register the MCP server separately, then copy the **complete**
+skill directory, including `references/`, into your host's skill location.
+From this checkout, a personal Claude Code installation is:
+
+```bash
+mkdir -p "$HOME/.claude/skills"
+cp -R ./skills/codex-discussion "$HOME/.claude/skills/"
+```
+
+Check for an existing same-name skill before copying. In Claude Code, invoke
+`/codex-discussion` with your question; in Codex, mention `$codex-discussion`.
+The [user manual](docs/skills.md) covers project scope, npm-based installation,
+other hosts, example prompts, updates/removal, and troubleshooting. Published
+`0.1.0` and `0.1.1` do not contain the skill; packages built from this checkout do.
 
 ## MCP tools
 
@@ -198,6 +223,12 @@ independently. Concurrently modifying the same conversation from multiple MCP
 processes is unsupported. Inference is not automatically retried after a
 connection closes or a request times out.
 
+## Roadmap
+
+- Add support for connecting to a remote Codex app-server, alongside the
+  currently supported local Codex connection. Remote connections are planned
+  and are not yet implemented.
+
 ## Development and validation
 
 See [AGENTS.md](AGENTS.md) for the repository map, behavioral contracts, validation
@@ -211,9 +242,9 @@ npm run smoke -- --models-only
 ```
 
 `verify:package` installs the tarball with production dependencies only in a
-separate temporary directory, then uses the installed command to simulate MCP
-discovery and a two-turn discussion. Automated tests do not consume actual model
-usage.
+separate temporary directory, checks the installed user skill and manual against
+the checkout, then uses the installed command to simulate MCP discovery and a
+two-turn discussion. Automated tests do not consume actual model usage.
 
 To validate a short two-turn discussion with a signed-in Codex instance:
 

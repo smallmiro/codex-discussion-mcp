@@ -29,8 +29,10 @@ agent controls the discussion and chooses a model and reasoning effort.
 | `tests/fixtures/app-server.mjs` | Deterministic process-boundary simulation of Codex, including error and ordering cases |
 | `scripts/verify-package.mjs` | Installation and MCP verification of a packed release artifact |
 | `scripts/smoke.mjs` | Optional verification against a locally authenticated Codex CLI |
+| `skills/codex-discussion/` | Portable user guide skill with standalone setup and tool references |
 | `.github/workflows/` | CI, token-based initial publication and release-based OIDC publication |
 | `docs/publishing.md` | npm publishing and trusted-publisher setup |
+| `docs/skills.md` | Human-readable skill installation, invocation, maintenance and troubleshooting manual |
 | `docs/verification.md` | Recorded validation results and known limits |
 | `docs/releases/` | Historical release records and artifact identities |
 | `docs/superpowers/` | Original design and completed implementation plan |
