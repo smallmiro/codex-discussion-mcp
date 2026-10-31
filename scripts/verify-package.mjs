@@ -12,6 +12,12 @@ const run = promisify(execFile);
 const root = fileURLToPath(new URL('..', import.meta.url));
 const temp = await mkdtemp(join(tmpdir(), 'codex-discussion-package-'));
 const metadata = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+const guideFiles = [
+  'docs/skills.md',
+  'skills/codex-discussion/SKILL.md',
+  'skills/codex-discussion/references/setup.md',
+  'skills/codex-discussion/references/tools.md',
+];
 let client;
 try {
   const supplied = process.argv.indexOf('--tarball');
@@ -25,6 +31,7 @@ try {
     const paths = info.files.map(file => file.path);
     assert.ok(paths.includes('dist/index.js'));
     assert.ok(paths.includes('LICENSE'));
+    for (const path of guideFiles) assert.ok(paths.includes(path), `Missing packaged guide file: ${path}`);
     assert.ok(!paths.some(path => /^(src|tests|node_modules|\.github|\.superpowers|\.env)(\/|$)/.test(path)));
     tarball = join(temp, info.filename);
   }
@@ -33,6 +40,13 @@ try {
   const installed = JSON.parse(await readFile(join(temp, 'node_modules', '@mirolab', 'codex-discussion-mcp', 'package.json'), 'utf8'));
   assert.equal(installed.name, metadata.name);
   assert.equal(installed.version, metadata.version);
+  for (const path of guideFiles) {
+    assert.equal(
+      await readFile(join(temp, 'node_modules', '@mirolab', 'codex-discussion-mcp', path), 'utf8'),
+      await readFile(join(root, path), 'utf8'),
+      `Installed guide differs from checkout: ${path}`,
+    );
+  }
   const help = await run(executable, ['--help'], { cwd: temp });
   assert.match(help.stdout, /codex-discussion-mcp/);
   const version = await run(executable, ['--version'], { cwd: temp });
@@ -55,7 +69,7 @@ try {
   assert.ok(read.messages.some(message => message.role === 'assistant' && message.text === 'Codex answer'));
   const reply = await call('discussion_reply', { discussionId: first.discussionId, message: 'early packed objection', model: 'beta' });
   assert.equal(reply.effort, 'medium');
-  console.log(`Packed installation verified: ${installed.name}@${installed.version}; executable, MCP discovery, model selection and two-turn discussion.`);
+  console.log(`Packed installation verified: ${installed.name}@${installed.version}; user skill and manual, executable, MCP discovery, model selection and two-turn discussion.`);
 } finally {
   await client?.close();
   await rm(temp, { recursive: true, force: true });

@@ -2,6 +2,41 @@
 
 Verification date: 2026-10-25. Version: `@mirolab/codex-discussion-mcp@0.1.0`.
 
+## Skill and User Manual Verification
+
+On 2026-10-31, the skill and manual changes for
+[issue #3](https://github.com/smallmiro/codex-discussion-mcp/issues/3) were checked
+on Linux x64 with Node.js 22.22.0 and npm 11.12.1. This is an unreleased change
+to the `0.1.1` source; the published `0.1.0` and `0.1.1` artifacts do not contain
+the skill or manual.
+
+- `npm run check`: Passed type checking, all 48 tests, and the build.
+- `npm run verify:package`: Passed isolated production installation, exact
+  content checks for the manual and all three skill files, executable checks,
+  model discovery, and a two-turn discussion using the process fixture.
+- `npm pack --dry-run`: Includes `docs/skills.md`,
+  `skills/codex-discussion/SKILL.md`, and both skill references. Source, tests,
+  implementation plans, and local configuration remain excluded.
+- Skill frontmatter passed the skill-creator validator. Local Markdown targets
+  and anchors, JSON examples, and `git diff --check` passed validation.
+- The manual's checkout-copy, npm-path-copy, and update/backup shell commands
+  were exercised in temporary directories with spaces in their paths. Complete
+  skill contents and references were preserved; backups stayed outside the
+  skill discovery directory. Real user configuration was not changed.
+- An independent read-only review found no actionable issues in the skill,
+  manual, installation instructions, protocol guidance, or package verifier.
+
+An earlier skill-draft run failed the existing test
+`resume restores thread defaults and reads persisted public history only`
+once while the fixture parsed its JSON state file. The targeted rerun and
+subsequent full runs passed. This task does not change that fixture.
+
+Host installation paths and invocation methods were checked against official
+documentation. Host UI discovery and automatic skill selection were not tested
+in live Claude Code, Codex, Cursor, Gemini CLI, Copilot, Antigravity, or Kiro
+sessions. No paid inference, npm publication, or runtime protocol changes were
+part of this documentation and packaging verification.
+
 ## Codex CLI 0.166.0 Compatibility Check
 
 On 2026-10-31, the current `0.1.1` source passed `npm run check` (type checking,

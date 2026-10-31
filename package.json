@@ -29,7 +29,9 @@
     "dist",
     "README.md",
     "LICENSE",
-    "docs/publishing.md"
+    "docs/publishing.md",
+    "docs/skills.md",
+    "skills"
   ],
   "engines": {
     "node": ">=22.14.0"
