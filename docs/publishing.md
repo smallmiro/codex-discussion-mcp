@@ -1,16 +1,16 @@
 # Public npm publishing through GitHub Actions
 
-See the release records for [0.1.0](releases/0.1.0.md),
-[0.1.1](releases/0.1.1.md), and the [0.1.2 release preparation](releases/0.1.2.md).
-Check the public registry for the currently published version:
+The current public release is `0.1.2`. See the release records for
+[0.1.0](releases/0.1.0.md), [0.1.1](releases/0.1.1.md), and
+[0.1.2](releases/0.1.2.md). Check the public registry for the published version:
 
 ```bash
 npm view @mirolab/codex-discussion-mcp version --registry=https://registry.npmjs.org/
 ```
 
-Published versions cannot be republished. Versions `0.1.0` and `0.1.1` used the
-bootstrap token because no npm Trusted Publisher was configured at publication;
-the `v0.1.1` OIDC run was rejected with `E404`. Configure the OIDC connection below
+Published versions cannot be republished. All three versions used the existing
+bootstrap token. The `v0.1.1` and `v0.1.2` OIDC runs were rejected with `E404`;
+actual OIDC publication remains unverified. Configure the OIDC connection below
 before relying on Trusted Publishing for another version.
 
 - GitHub: `smallmiro/codex-discussion-mcp`
