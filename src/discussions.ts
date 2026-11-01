@@ -96,7 +96,9 @@ export class DiscussionService {
     state.submitting = true;
     try {
       const metadata = record(await this.rpc.request('thread/read', { threadId: state.id, includeTurns: false }));
-      if (record(record(metadata.thread).status).type === 'active') this.busy(state, active?.id);
+      const thread = record(metadata.thread);
+      if (record(thread.status).type === 'active') this.busy(state, active?.id);
+      this.reconcileDefaults(state, thread);
       if (!state.effort && !input.effort && (!input.model || input.model === state.model)) {
         throw new DiscussionError('EFFORT_REQUIRED', 'Saved effort is unavailable. Call models_list and explicitly choose an effort for this reply.');
       }
@@ -296,8 +298,9 @@ export class DiscussionService {
   }
 
   private reconcileDefaults(state: DiscussionState, thread: Record<string, unknown>) {
+    const changedModel = typeof thread.model === 'string' && thread.model !== state.model;
     if (typeof thread.model === 'string') state.model = thread.model;
-    if ('reasoningEffort' in thread) state.effort = typeof thread.reasoningEffort === 'string' ? thread.reasoningEffort : undefined;
+    if ('reasoningEffort' in thread || changedModel) state.effort = typeof thread.reasoningEffort === 'string' ? thread.reasoningEffort : undefined;
   }
 
   private async historyPage(state: DiscussionState, turn: TurnState, position: Omit<ReadCursor, 'instance'>, limit: number) {

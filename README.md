@@ -248,7 +248,7 @@ inference access and reports `accessVerified: false`.
 Selection rules:
 
 1. If omitted on the first question, use the catalog's default model and that model's default effort.
-2. If omitted on a follow-up question, keep the previous selection.
+2. If omitted on a follow-up question, inherit the current persisted thread defaults, including settings from completed work in another connection. A prior read is not required.
 3. If the model changes and effort is omitted, use the new model's default effort.
 4. Unsupported combinations return an error that includes the allowed values.
 

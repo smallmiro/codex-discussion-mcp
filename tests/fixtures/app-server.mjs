@@ -140,8 +140,9 @@ createInterface({ input: process.stdin }).on('line', async line => {
     const turn = { id: `external-${thread.turns.length + 1}`, status: 'inProgress', error: null,
       items: [{ id: 'external-user', type: 'userMessage', content: [{ type: 'text', text: 'External question' }] }] };
     thread.turns.push(turn);
-    thread.model = 'beta';
-    thread.reasoningEffort = 'medium';
+    thread.model = params.model ?? 'beta';
+    if (params.omitEffort) delete thread.reasoningEffort;
+    else thread.reasoningEffort = 'effort' in params ? params.effort : 'medium';
     thread.status = { type: 'active', activeFlags: [] };
     save();
     reply(id, { turnId: turn.id });

@@ -82,6 +82,48 @@ test('saved history can use a page received by a concurrent read before disconne
   assert.ok(results[0]!.messages.some(message => message.text === 'Codex answer'));
 });
 
+for (const readFirst of [false, true]) {
+  for (const { choice, expected } of [
+    { choice: {}, expected: { model: 'beta', effort: 'medium' } },
+    { choice: { effort: 'new-future-effort' }, expected: { model: 'beta', effort: 'new-future-effort' } },
+    { choice: { model: 'alpha' }, expected: { model: 'alpha', effort: 'low' } },
+    { choice: { model: 'alpha', effort: 'high' }, expected: { model: 'alpha', effort: 'high' } },
+  ]) {
+    test(`reply selection after external completion ${readFirst ? 'with' : 'without'} read respects ${JSON.stringify(choice)}`, async t => {
+      const { service, rpc } = discussionClient(t);
+      const first = await service.start({ message: 'early', model: 'alpha', effort: 'high' });
+      await rpc.request('test/externalStart', { threadId: first.discussionId });
+      await rpc.request('test/externalComplete', { threadId: first.discussionId });
+      if (readFirst) await service.read({ discussionId: first.discussionId });
+      const next = await service.reply({ discussionId: first.discussionId, message: 'early follow-up', ...choice });
+      assert.equal(next.model, expected.model);
+      assert.equal(next.effort, expected.effort);
+    });
+  }
+  for (const unknown of [{ effort: null }, { omitEffort: true }]) {
+    test(`reply selection ${readFirst ? 'with' : 'without'} read requires unknown saved effort ${JSON.stringify(unknown)}`, async t => {
+      const { service, rpc } = discussionClient(t);
+      const first = await service.start({ message: 'early', model: 'alpha', effort: 'high' });
+      await rpc.request('test/externalStart', { threadId: first.discussionId, ...unknown });
+      await rpc.request('test/externalComplete', { threadId: first.discussionId });
+      if (readFirst) await service.read({ discussionId: first.discussionId });
+      await assert.rejects(service.reply({ discussionId: first.discussionId, message: 'early follow-up' }), { code: 'EFFORT_REQUIRED' });
+      const next = await service.reply({ discussionId: first.discussionId, message: 'early explicit', effort: 'medium' });
+      assert.equal(next.model, 'beta');
+      assert.equal(next.effort, 'medium');
+    });
+  }
+}
+
+test('reply selection rejects an active foreign turn before submitting inference', async t => {
+  const { service, rpc } = discussionClient(t);
+  const first = await service.start({ message: 'early', model: 'alpha', effort: 'high' });
+  await rpc.request('test/externalStart', { threadId: first.discussionId });
+  await assert.rejects(service.reply({ discussionId: first.discussionId, message: 'early follow-up' }), { code: 'DISCUSSION_BUSY' });
+  const requests = await rpc.request<Array<{ method: string }>>('test/requests', {});
+  assert.equal(requests.filter(request => request.method === 'turn/start').length, 1);
+});
+
 test('start returns the chosen settings and retains completion before RPC response', async t => {
   const { service, rpc } = discussionClient(t);
   const started = await service.start({ message: 'early answer', model: 'alpha', effort: 'high' });
