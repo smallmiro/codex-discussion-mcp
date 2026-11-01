@@ -285,8 +285,7 @@ export class DiscussionService {
         }
       }
       if (!state.submitting) {
-        if (typeof thread.model === 'string') state.model = thread.model;
-        if ('reasoningEffort' in thread) state.effort = typeof thread.reasoningEffort === 'string' ? thread.reasoningEffort : undefined;
+        this.reconcileDefaults(state, thread);
       }
     } catch (error) {
       // A newly submitted turn can emit events before its rollout/history is
@@ -294,6 +293,11 @@ export class DiscussionService {
       if (ownedActiveId && (!requestedTurnId || requestedTurnId === ownedActiveId) && isStartupReadError(error)) return;
       if (this.connected) throw error;
     }
+  }
+
+  private reconcileDefaults(state: DiscussionState, thread: Record<string, unknown>) {
+    if (typeof thread.model === 'string') state.model = thread.model;
+    if ('reasoningEffort' in thread) state.effort = typeof thread.reasoningEffort === 'string' ? thread.reasoningEffort : undefined;
   }
 
   private async historyPage(state: DiscussionState, turn: TurnState, position: Omit<ReadCursor, 'instance'>, limit: number) {
