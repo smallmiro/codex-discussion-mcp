@@ -102,9 +102,16 @@ from its `supportedReasoningEfforts` entries, using their `reasoningEffort` valu
 There is no fixed model list or universal set of effort levels.
 
 - On the first turn, omitted choices use the default model and its default effort.
-- On replies, omitted choices inherit the previous selection.
+- On replies, omitted choices inherit the current persisted thread defaults,
+  including settings from completed work in another connection. A prior read is
+  not required. Explicit choices take precedence.
 - Changing model without specifying effort selects the new model's default effort.
 - An explicit unsupported choice returns an error; it is not silently replaced.
+
+If saved effort is explicitly unavailable, or the backend model changed without
+an effort value, specify an effort for that model or select a different model
+and use its advertised default. Otherwise the reply returns `EFFORT_REQUIRED`.
+An omitted effort field for an unchanged model preserves its last known effort.
 
 `models_list` returns catalog metadata and `accessVerified: false`, not verified
 account entitlement. A model can be listed and still reject inference.
