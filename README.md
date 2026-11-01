@@ -236,6 +236,7 @@ starting with `0.1.2`; published `0.1.0` and `0.1.1` do not contain them.
 | `models_list` | `includeHidden?` | Model and effort catalog, retrieval time, package update status |
 | `discussion_start` | `message`, `cwd?`, `model?`, `effort?` | New `discussionId`, `turnId`, selected settings, current status |
 | `discussion_reply` | `discussionId`, `message`, `model?`, `effort?` | New turn in the same conversation |
+| `discussion_forget` | `discussionId` | Release inactive local output; preserve saved history |
 | `discussion_read` | `discussionId`, `turnId?`, `cursor?`, `limit?`, `waitMs?` | Status, public messages, `nextCursor`, errors |
 | `discussion_cancel` | `discussionId`, `turnId` | Status of the interruption request for a specific turn |
 
@@ -286,6 +287,25 @@ is running return `DISCUSSION_BUSY`. Different conversations can run
 independently. Concurrently modifying the same conversation from multiple MCP
 processes is unsupported. Inference is not automatically retried after a
 connection closes or a request times out.
+
+Received output stays in memory until process exit or an explicit
+`discussion_forget({ discussionId })` call. This releases all locally retained
+turns, fetched history pages, and cursors for an inactive discussion, while
+preserving Codex's saved history. There is no automatic eviction. The result is
+`{ discussionId, forgotten: true }`, or `forgotten: false` if the discussion is
+unknown locally or already released; unknown IDs are not loaded.
+
+Release returns `DISCUSSION_BUSY` while a turn, submission, resume, read, poll,
+cancellation, or another release is pending. While connected, backend inactivity
+must also be confirmed. A `connectionLost` turn has an uncertain backend outcome
+and cannot be released; completed, failed, or interrupted output can be released
+after disconnect. Release never cancels or replays inference.
+
+Old cursors return `INVALID_CURSOR` after release. A cursorless read can resume
+saved history while connected without inference. After disconnect, released
+output cannot be recovered in that MCP process; start a new process to access
+saved history. Previously fetched history remains readable until release, and
+unfetched source pages still require a connection.
 
 ## Roadmap
 

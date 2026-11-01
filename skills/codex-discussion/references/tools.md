@@ -9,6 +9,7 @@ Names below are the server's tool names. Use any prefixes exposed by the host.
 | `discussion_reply` | `discussionId`, `message`, `model?`, `effort?` | Submit a follow-up in the same discussion. |
 | `discussion_read` | `discussionId`, `turnId?`, `cursor?`, `limit?`, `waitMs?` | Read output and status; optionally wait for progress. |
 | `discussion_cancel` | `discussionId`, `turnId` | Request interruption of one specific turn. |
+| `discussion_forget` | `discussionId` | Release inactive local output and cursors; preserve saved Codex history. |
 
 ## Project directory and examples
 
@@ -207,3 +208,23 @@ Tools return structured application errors, also represented as text for legacy
 hosts. Inspect `isError` and the error information before using the result.
 Report authentication, provider, and protocol failures as failures rather than
 converting them into technical advice from Codex.
+
+## Explicit local retention
+
+Received output is retained until process exit or an explicit
+`discussion_forget({ discussionId })` call. Use it when the local output is no
+longer needed. It releases retained turns, fetched history pages and cursors,
+without deleting saved Codex history, cancelling generation or running inference.
+There is no automatic eviction. It returns `forgotten: true` after release and
+`forgotten: false` for an unknown or already-released local ID, without loading it.
+
+Active turns, pending submissions/resumes/reads/polls/cancellations, another
+release, or active backend work return `DISCUSSION_BUSY`. Connected release
+requires confirmed backend inactivity. Turns marked `connectionLost` cannot be
+released because their backend outcome is uncertain. Confirmed completed, failed
+or interrupted output can be released while disconnected.
+
+After release, old cursors return `INVALID_CURSOR`. Read without a cursor to
+resume saved history while connected; this runs no inference. Disconnected
+released output requires a new MCP process to recover saved history. Forgetting
+is local to one MCP process and does not manage another client's retained state.

@@ -111,14 +111,31 @@ for (const mode of ['offline', 'hang'] as const) {
   });
 }
 
-test('MCP discovery exposes five tools with dynamic model and effort strings', async t => {
+test('MCP discovery exposes six tools with dynamic model and effort strings', async t => {
   const client = await connection(t);
   const { tools } = await client.listTools();
-  assert.deepEqual(tools.map(tool => tool.name).sort(), ['discussion_cancel', 'discussion_read', 'discussion_reply', 'discussion_start', 'models_list']);
+  assert.deepEqual(tools.map(tool => tool.name).sort(), ['discussion_cancel', 'discussion_forget', 'discussion_read', 'discussion_reply', 'discussion_start', 'models_list']);
   const start = tools.find(tool => tool.name === 'discussion_start')!;
   const model = record(record(start.inputSchema.properties).model);
   assert.equal(model.type, 'string');
   assert.equal(model.enum, undefined);
+});
+
+test('MCP forget releases local output and resumes history without inference', async t => {
+  const client = await connection(t);
+  const first = record((await client.callTool({ name: 'discussion_start', arguments: { message: 'early' } })).structuredContent);
+  const released = await client.callTool({ name: 'discussion_forget', arguments: { discussionId: first.discussionId } });
+  assert.notEqual(released.isError, true);
+  assert.deepEqual(released.structuredContent, { discussionId: first.discussionId, forgotten: true });
+  const text = (released.content as Array<{ type: string; text: string }>).find(item => item.type === 'text')!.text;
+  assert.deepEqual(JSON.parse(text), released.structuredContent);
+  const repeated = record((await client.callTool({ name: 'discussion_forget', arguments: { discussionId: first.discussionId } })).structuredContent);
+  assert.equal(repeated.forgotten, false);
+  const resumed = record((await client.callTool({ name: 'discussion_read', arguments: { discussionId: first.discussionId } })).structuredContent);
+  assert.equal(resumed.status, 'completed');
+  assert.ok((resumed.messages as Array<{ text: string }>).some(message => message.text === 'Codex answer'));
+  const invalid = await client.callTool({ name: 'discussion_forget', arguments: { discussionId: first.discussionId, extra: true } });
+  assert.equal(invalid.isError, true);
 });
 
 test('MCP caller discovers models and discusses with independently selected model and effort', async t => {
