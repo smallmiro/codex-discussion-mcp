@@ -67,10 +67,33 @@ counterexamples and evidence that would change the recommendation."
 
 ## Select model and effort
 
-Call `models_list`. Respect an explicit user selection; otherwise choose using
-the catalog's model and effort descriptions and the question's complexity.
-Use the entry's `model`, not its picker `id`, and a supported effort. Catalog
-presence does not verify inference access. Never silently substitute a model.
+Call `models_list` and use the entry's `model`, not its picker `id`. Select an
+effort from that model's supported entries. Preserve each model or effort the
+user explicitly supplied; choose only the omitted settings. Report an unavailable
+or unsupported explicit choice instead of silently substituting another one.
+
+When the user delegates selection, match the task's scope, ambiguity, and
+requested depth to the returned model and effort descriptions. Incorporate any
+stated preference for speed or depth. Use those descriptions to judge how much
+exploration the question needs; effort names do not form a universal scale.
+Catalog presence does not verify account access, and descriptions do not prove
+prices or performance beyond what they actually state.
+
+For example:
+
+- A narrow equivalence check with a quick-answer preference: choose a catalog
+  model described as suitable for bounded coding questions and a supported effort
+  described as favoring speed, when those options fit the supplied evidence.
+- A review spanning several components with competing failure explanations and
+  a depth preference: choose a catalog model and supported effort described as
+  providing the broader exploration needed to examine those alternatives.
+
+Before submitting, include the actual selected model, effort, and one short
+reason in an existing progress update, in the user's language: “Using
+`<selected model>` with `<supported effort>` because this is a bounded behavior
+check and you prefer a quick answer.” Continue with the tool call; this is an
+explanation, not an approval request. Selection is the calling agent's judgment,
+not a deterministic server routing guarantee. It needs no extra inference call.
 
 ## Run the discussion
 
