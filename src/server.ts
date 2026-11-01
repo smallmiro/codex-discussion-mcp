@@ -68,5 +68,12 @@ export function createServer(service: DiscussionService, catalog: ModelCatalog, 
     inputSchema: z.object({ discussionId: identifier, turnId: identifier }).strict(),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   }, input => safe(() => service.cancel(input)));
+
+  server.registerTool('discussion_forget', {
+    title: 'Forget retained local discussion output',
+    description: 'Explicitly release inactive discussion output retained in this MCP process. Does not delete saved Codex history, cancel generation, or run inference. Rejects active, pending, loading, or uncertain connection-lost work. Returns forgotten=false for an unknown or already released local discussion. Old cursors become invalid; read without a cursor to resume saved history while connected. Received output otherwise remains retained until process exit.',
+    inputSchema: z.object({ discussionId: identifier }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, input => safe(() => service.forget(input)));
   return server;
 }

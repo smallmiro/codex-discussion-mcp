@@ -8,6 +8,7 @@ const requests = [];
 const readErrors = new Map();
 let armedReadNotification;
 let itemsReads = 0;
+let gate;
 const pidFile = process.argv.find(arg => arg.startsWith('--pid-file='))?.slice('--pid-file='.length);
 if (pidFile) writeFileSync(pidFile, String(process.pid));
 const stateFile = process.argv.find(arg => arg.startsWith('--state-file='))?.slice('--state-file='.length);
@@ -47,7 +48,21 @@ createInterface({ input: process.stdin }).on('line', async line => {
   }
   const { id, method, params = {} } = message;
   requests.push({ method, params });
-  if (method === 'initialize') {
+  if (gate?.method === method && !gate.release
+    && (gate.includeTurns === undefined || gate.includeTurns === params.includeTurns)) {
+    await new Promise(resolve => { gate.release = resolve; });
+  }
+  if (method === 'test/blockNext') {
+    gate = { method: params.method, includeTurns: params.includeTurns };
+    reply(id, {});
+  } else if (method === 'test/gateStatus') {
+    reply(id, { waiting: !!gate?.release });
+  } else if (method === 'test/releaseGate') {
+    const release = gate?.release;
+    gate = undefined;
+    release?.();
+    reply(id, {});
+  } else if (method === 'initialize') {
     setTimeout(() => { initialized = true; reply(id, { userAgent: 'fixture' }); }, 5);
   } else if (method === 'initialized') {
     notified = initialized;
@@ -124,7 +139,7 @@ createInterface({ input: process.stdin }).on('line', async line => {
     }
     notify('turn/started', { threadId: thread.id, turn: { ...turn, items: [] } });
     if (text.startsWith('early')) complete(thread, turn);
-    reply(id, { turn: { id: turn.id, status: 'inProgress', items: [] } });
+    if (!process.argv.includes('--drop-turn-start-response')) reply(id, { turn: { id: turn.id, status: 'inProgress', items: [] } });
     if (text.startsWith('auto')) setTimeout(() => complete(thread, turn), 25);
     if (text.startsWith('fail')) setTimeout(() => complete(thread, turn, 'failed'), 10);
     if (text.startsWith('partial')) setTimeout(() => {

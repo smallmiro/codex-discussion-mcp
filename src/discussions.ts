@@ -36,6 +36,11 @@ interface DiscussionState {
   latestTurnId?: string;
   submitting: boolean;
   pendingSelection?: Selection;
+  cursors: Cursors;
+  operations: number;
+  forgetting: boolean;
+  unknownSubmission: boolean;
+  foreignActive: boolean;
 }
 export interface StartInput extends Partial<Selection> { message: string; cwd?: string }
 export interface ReplyInput extends Partial<Selection> { discussionId: string; message: string }
@@ -56,7 +61,6 @@ function isStartupReadError(error: unknown): boolean {
 export class DiscussionService {
   private discussions = new Map<string, DiscussionState>();
   private loading = new Map<string, Promise<DiscussionState>>();
-  private readonly cursors = new Cursors();
   private readonly unsubscribe: Array<() => void>;
   private connected = true;
 
@@ -82,31 +86,36 @@ export class DiscussionService {
     }));
     const thread = record(result.thread);
     if (typeof thread.id !== 'string') throw new DiscussionError('PROTOCOL_ERROR', 'Missing thread ID in app-server response.');
-    const state: DiscussionState = { id: thread.id, cwd, ...selection, turns: new Map(), submitting: true };
+    const state: DiscussionState = {
+      id: thread.id, cwd, ...selection, turns: new Map(), submitting: true,
+      cursors: new Cursors(), operations: 0, forgetting: false, unknownSubmission: false, foreignActive: false,
+    };
     this.discussions.set(state.id, state);
     return this.submit(state, input.message, selection);
   }
 
   async reply(input: ReplyInput) {
     this.validateMessage(input.message);
-    const state = await this.load(input.discussionId);
-    const active = state.latestTurnId ? state.turns.get(state.latestTurnId) : undefined;
-    if (state.submitting || active?.status === 'inProgress') this.busy(state, active?.id);
-    // Claim before the first await; two callers cannot both pass this guard.
-    state.submitting = true;
-    try {
-      const metadata = record(await this.rpc.request('thread/read', { threadId: state.id, includeTurns: false }));
-      const thread = record(metadata.thread);
-      if (record(thread.status).type === 'active') this.busy(state, active?.id);
-      this.reconcileDefaults(state, thread);
-      if (!state.effort && !input.effort && (!input.model || input.model === state.model)) {
-        throw new DiscussionError('EFFORT_REQUIRED', 'Saved effort is unavailable. Call models_list and explicitly choose an effort for this reply.');
+    return this.withDiscussion(input.discussionId, async state => {
+      const active = state.latestTurnId ? state.turns.get(state.latestTurnId) : undefined;
+      if (state.submitting || active?.status === 'inProgress') this.busy(state, active?.id);
+      // Claim before the first await; two callers cannot both pass this guard.
+      state.submitting = true;
+      try {
+        const metadata = record(await this.rpc.request('thread/read', { threadId: state.id, includeTurns: false }));
+        const thread = record(metadata.thread);
+        this.observeActivity(state, thread);
+        if (record(thread.status).type === 'active') this.busy(state, active?.id);
+        this.reconcileDefaults(state, thread);
+        if (!state.effort && !input.effort && (!input.model || input.model === state.model)) {
+          throw new DiscussionError('EFFORT_REQUIRED', 'Saved effort is unavailable. Call models_list and explicitly choose an effort for this reply.');
+        }
+        const selection = await this.catalog.select(input, { model: state.model, effort: state.effort });
+        return await this.submit(state, input.message, selection);
+      } finally {
+        state.submitting = false;
       }
-      const selection = await this.catalog.select(input, { model: state.model, effort: state.effort });
-      return await this.submit(state, input.message, selection);
-    } finally {
-      state.submitting = false;
-    }
+    });
   }
 
   async read(input: ReadInput, signal?: AbortSignal) {
@@ -115,35 +124,93 @@ export class DiscussionService {
     if (!Number.isInteger(limit) || limit < 1 || limit > 100 || !Number.isInteger(waitMs) || waitMs < 0 || waitMs > 20_000) {
       throw new DiscussionError('INVALID_ARGUMENT', 'limit must be 1..100; waitMs must be 0..20000.');
     }
-    const cursor = this.cursors.decode(input.cursor, input.discussionId, input.turnId);
-    const state = await this.load(input.discussionId);
-    const observed = state.turns.get(input.turnId ?? cursor?.turnId ?? state.latestTurnId ?? '');
-    const observedVersion = observed?.version;
-    await this.refreshReadState(state, input.turnId ?? cursor?.turnId);
-    const turn = await this.findTurn(state, input.turnId ?? cursor?.turnId);
-    const position = cursor ?? { discussionId: state.id, turnId: turn.id, kind: turn.live ? 'live' as const : 'history' as const, offset: 0, textOffset: 0 };
-    if (turn.live && position.kind !== 'live') throw new DiscussionError('INVALID_CURSOR', 'Cursor does not refer to a live message page. Retry without a cursor.');
-    const outputArrived = observed === turn && observedVersion !== turn.version;
-    if (waitMs && turn.status === 'inProgress' && turn.live && !outputArrived) await this.wait(turn, waitMs, signal);
-    const page = turn.live || turn.inlineHistory
-      ? this.cursors.page(this.orderedMessages(turn), position, limit)
-      : await this.historyPage(state, turn, position, limit);
-    return { ...this.summary(state, turn), ...page };
+    if (input.cursor && !this.discussions.has(input.discussionId)) {
+      throw new DiscussionError('INVALID_CURSOR', 'Invalid or released cursor. Retry without a cursor to resume saved history.');
+    }
+    return this.withDiscussion(input.discussionId, async state => {
+      const cursor = state.cursors.decode(input.cursor, input.discussionId, input.turnId);
+      const observed = state.turns.get(input.turnId ?? cursor?.turnId ?? state.latestTurnId ?? '');
+      const observedVersion = observed?.version;
+      await this.refreshReadState(state, input.turnId ?? cursor?.turnId);
+      const turn = await this.findTurn(state, input.turnId ?? cursor?.turnId);
+      const position = cursor ?? { discussionId: state.id, turnId: turn.id, kind: turn.live ? 'live' as const : 'history' as const, offset: 0, textOffset: 0 };
+      if (turn.live && position.kind !== 'live') throw new DiscussionError('INVALID_CURSOR', 'Cursor does not refer to a live message page. Retry without a cursor.');
+      const outputArrived = observed === turn && observedVersion !== turn.version;
+      if (waitMs && turn.status === 'inProgress' && turn.live && !outputArrived) await this.wait(turn, waitMs, signal);
+      const page = turn.live || turn.inlineHistory
+        ? state.cursors.page(this.orderedMessages(turn), position, limit)
+        : await this.historyPage(state, turn, position, limit);
+      return { ...this.summary(state, turn), ...page };
+    });
   }
 
   async cancel(input: { discussionId: string; turnId: string }) {
-    const state = await this.load(input.discussionId);
-    const turn = await this.findTurn(state, input.turnId);
-    if (turn.status !== 'inProgress') return this.summary(state, turn);
-    if (state.submitting) this.busy(state, state.latestTurnId);
-    const latest = await this.findTurn(state);
-    if (latest.id !== turn.id) throw new DiscussionError('TURN_NOT_ACTIVE', 'The specified turn is not the active turn.');
-    await this.rpc.request('turn/interrupt', { threadId: state.id, turnId: turn.id });
-    turn.cancelRequested = true;
-    return this.summary(state, turn);
+    return this.withDiscussion(input.discussionId, async state => {
+      const turn = await this.findTurn(state, input.turnId);
+      if (turn.status !== 'inProgress') return this.summary(state, turn);
+      if (state.submitting) this.busy(state, state.latestTurnId);
+      const latest = await this.findTurn(state);
+      if (latest.id !== turn.id) throw new DiscussionError('TURN_NOT_ACTIVE', 'The specified turn is not the active turn.');
+      await this.rpc.request('turn/interrupt', { threadId: state.id, turnId: turn.id });
+      turn.cancelRequested = true;
+      return this.summary(state, turn);
+    });
+  }
+
+  async forget(input: { discussionId: string }) {
+    if (this.loading.has(input.discussionId)) {
+      throw new DiscussionError('DISCUSSION_BUSY', 'Discussion is still loading; wait before forgetting it.', { discussionId: input.discussionId });
+    }
+    const state = this.discussions.get(input.discussionId);
+    if (!state) return { discussionId: input.discussionId, forgotten: false };
+    if (state.forgetting) this.busy(state);
+    this.requireInactive(state);
+    // Claim before checking backend freshness so new local operations cannot race release.
+    state.forgetting = true;
+    try {
+      if (this.connected) {
+        const metadata = record(await this.rpc.request('thread/read', { threadId: state.id, includeTurns: false }));
+        const thread = record(metadata.thread);
+        this.observeActivity(state, thread);
+        if (record(thread.status).type !== 'idle') {
+          throw new DiscussionError('DISCUSSION_BUSY', 'Backend inactivity could not be confirmed; retained state was not forgotten.', { discussionId: state.id });
+        }
+      }
+      this.requireInactive(state);
+      this.discussions.delete(state.id);
+      return { discussionId: state.id, forgotten: true };
+    } finally {
+      // Keep the claim on detached state so a previously resolved load cannot reuse it.
+      if (this.discussions.get(state.id) === state) state.forgetting = false;
+    }
+  }
+
+  private requireInactive(state: DiscussionState) {
+    const active = Array.from(state.turns.values()).find(turn => turn.status === 'inProgress' || turn.status === 'connectionLost');
+    if (state.submitting || state.operations || active || state.unknownSubmission || (!this.connected && state.foreignActive)) {
+      this.busy(state, active?.id);
+    }
+  }
+
+  private observeActivity(state: DiscussionState, thread: Record<string, unknown>, ownedActiveId?: string) {
+    const status = record(thread.status).type;
+    if (status === 'idle') state.foreignActive = false;
+    else if (status === 'active' && !ownedActiveId) state.foreignActive = true;
+  }
+
+  private async withDiscussion<T>(id: string, operation: (state: DiscussionState) => Promise<T>): Promise<T> {
+    const state = await this.load(id);
+    if (state.forgetting || this.discussions.get(id) !== state) this.busy(state);
+    state.operations++;
+    try {
+      return await operation(state);
+    } finally {
+      state.operations--;
+    }
   }
 
   private async submit(state: DiscussionState, message: string, selection: Selection) {
+    const previousTurnId = state.latestTurnId;
     state.pendingSelection = selection;
     try {
       const result = record(await this.rpc.request('turn/start', {
@@ -167,6 +234,14 @@ export class DiscussionService {
       }
       return this.summary(state, turn);
     } catch (error) {
+      const observed = state.latestTurnId !== previousTurnId ? state.turns.get(state.latestTurnId ?? '') : undefined;
+      const terminalObserved = observed && ['completed', 'failed', 'interrupted'].includes(observed.status);
+      const outcomeUnknown = !this.connected || (error instanceof DiscussionError
+        && (error.details?.outcomeUnknown === true || error.code === 'PROTOCOL_ERROR'));
+      if (!terminalObserved && outcomeUnknown) {
+        // The backend may have accepted a submission even without emitting a turn ID.
+        state.unknownSubmission = true;
+      }
       if (error instanceof DiscussionError) {
         throw new DiscussionError(error.code, error.message, { ...error.details, discussionId: state.id, ...(state.latestTurnId ? { turnId: state.latestTurnId } : {}) });
       }
@@ -202,7 +277,10 @@ export class DiscussionService {
     const model = result.model ?? resumed.model;
     const effort = result.reasoningEffort ?? resumed.reasoningEffort;
     if (typeof model !== 'string') throw new DiscussionError('MODEL_REQUIRED', 'Cannot recover the saved discussion model.');
-    const state: DiscussionState = { id, cwd, model, effort: typeof effort === 'string' ? effort : undefined, turns: new Map(), submitting: false };
+    const state: DiscussionState = {
+      id, cwd, model, effort: typeof effort === 'string' ? effort : undefined, turns: new Map(), submitting: false,
+      cursors: new Cursors(), operations: 0, forgetting: false, unknownSubmission: false, foreignActive: false,
+    };
     this.discussions.set(id, state);
     return state;
   }
@@ -245,6 +323,7 @@ export class DiscussionService {
     try {
       const metadata = record(await this.rpc.request('thread/read', { threadId: state.id, includeTurns: false }));
       const thread = record(metadata.thread);
+      this.observeActivity(state, thread, ownedActiveId);
       let latest: Record<string, unknown>;
       let inline = false;
       try {
@@ -271,6 +350,7 @@ export class DiscussionService {
         inline = true;
       }
       if (record(thread.status).type === 'active' && (typeof latest.id !== 'string' || latest.id !== ownedActiveId)) {
+        state.foreignActive = true;
         this.busy(state, typeof latest.id === 'string' ? latest.id : undefined);
       }
       if (typeof latest.id === 'string') {
@@ -316,7 +396,7 @@ export class DiscussionService {
       }
     }
     if (!page) throw new DiscussionError('CONNECTION_LOST', 'This history page was not received before disconnect. Start a new MCP process to read saved history.');
-    return this.cursors.page(page.messages, position, limit, page.nextSourceCursor);
+    return state.cursors.page(page.messages, position, limit, page.nextSourceCursor);
   }
 
   private async fetchHistoryPage(discussionId: string, turnId: string, sourceCursor?: string) {
@@ -435,7 +515,7 @@ export class DiscussionService {
   }
 
   private busy(state: DiscussionState, turnId?: string): never {
-    throw new DiscussionError('DISCUSSION_BUSY', 'Discussion has an active or pending turn; read or cancel it before replying.', { discussionId: state.id, ...(turnId ? { turnId } : {}) });
+    throw new DiscussionError('DISCUSSION_BUSY', 'Discussion has active, pending, or uncertain work; wait for pending operations, read the turn, or cancel active generation before proceeding.', { discussionId: state.id, ...(turnId ? { turnId } : {}) });
   }
 
   private validateMessage(message: string) {

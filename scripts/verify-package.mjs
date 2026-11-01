@@ -56,7 +56,7 @@ try {
   client = new Client({ name: 'packed-install-verification', version: '1.0.0' }, { capabilities: {} });
   const transport = new StdioClientTransport({ command: executable, args: ['--no-update-check', '--cwd', temp, '--codex-command', process.execPath, '--codex-arg', fixture], cwd: temp, stderr: 'pipe' });
   await client.connect(transport);
-  assert.equal((await client.listTools()).tools.length, 5);
+  assert.equal((await client.listTools()).tools.length, 6);
   const call = async (name, args) => {
     const result = await client.callTool({ name, arguments: args });
     assert.notEqual(result.isError, true, JSON.stringify(result));
@@ -72,7 +72,17 @@ try {
   assert.ok(read.messages.some(message => message.role === 'assistant' && message.text === 'Codex answer'));
   const reply = await call('discussion_reply', { discussionId: first.discussionId, message: 'early packed objection', model: 'beta' });
   assert.equal(reply.effort, 'medium');
-  console.log(`Packed installation verified: ${installed.name}@${installed.version}; user skill and manual, executable, MCP discovery, model selection and two-turn discussion.`);
+  const page = await call('discussion_read', { discussionId: first.discussionId, limit: 1 });
+  assert.ok(page.nextCursor);
+  assert.deepEqual(await call('discussion_forget', { discussionId: first.discussionId }), { discussionId: first.discussionId, forgotten: true });
+  assert.equal((await call('discussion_forget', { discussionId: first.discussionId })).forgotten, false);
+  const stale = await client.callTool({ name: 'discussion_read', arguments: { discussionId: first.discussionId, cursor: page.nextCursor } });
+  assert.equal(stale.isError, true);
+  assert.equal(stale.structuredContent.error.code, 'INVALID_CURSOR');
+  const resumed = await call('discussion_read', { discussionId: first.discussionId });
+  assert.equal(resumed.status, 'completed');
+  assert.ok(resumed.messages.some(message => message.text === 'Codex answer'));
+  console.log(`Packed installation verified: ${installed.name}@${installed.version}; user skill and manual, executable, MCP discovery, model selection, two-turn discussion, local release and saved-history recovery.`);
 } finally {
   await client?.close();
   await rm(temp, { recursive: true, force: true });

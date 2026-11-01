@@ -256,6 +256,17 @@ for pagination limits, model switching, structured errors, and resuming saved
 discussions. Cursors are tied to the MCP process, discussion, and turn. After a
 restart, keep the discussion ID but read without an old cursor.
 
+For long-running MCP hosts, `discussion_forget({ discussionId })` explicitly
+releases inactive locally retained output and invalidates its cursors. It leaves
+saved Codex history intact and runs no inference; a cursorless read can resume
+that history while connected. Unknown/already-released IDs return
+`forgotten: false` without loading them. Active or pending operations, foreign
+backend activity and uncertain `connectionLost` turns cannot be released.
+Submission outcomes and observed external activity remain protected after a
+disconnect if no terminal event or backend inactivity was confirmed.
+Completed output remains readable after disconnect until explicitly released;
+recovery after release requires a new MCP process. There is no automatic eviction.
+
 ## 6. Update or remove the skill
 
 ### Check and update the MCP package

@@ -202,6 +202,9 @@ The review reported no Critical or Minor findings.
 - The scope is a read-only local stdio service. Concurrent writes to the same
   discussion from multiple processes and service-scale memory lifecycle management
   are not provided. Completed output remains cached for the lifetime of the MCP process.
+  This describes the original verification scope; explicit local release was
+  subsequently added through [issue #20](https://github.com/smallmiro/codex-discussion-mcp/issues/20).
+  See the current [retention policy](../skills/codex-discussion/references/tools.md#explicit-local-retention).
 - Messages updated during generation must be fetched again without a cursor.
   Message page cursors are bound to a process, discussion, and turn and must not
   be reused after a restart.
@@ -261,3 +264,30 @@ the OIDC failure and successful token fallback are recorded in the release recor
 No new live inference was run; OIDC publication remains unverified.
 
 Future verification runs and artifacts are available in [GitHub Actions](https://github.com/smallmiro/codex-discussion-mcp/actions).
+
+## Explicit Local Discussion Release (2026-11-01)
+
+Validation for [issue #20](https://github.com/smallmiro/codex-discussion-mcp/issues/20)
+on Node.js 22.22.0:
+
+- `npm run check`: passed type checking, all 115 tests, and the build.
+- `npm run verify:package`: passed independent tarball installation, six-tool MCP
+  discovery, a two-turn discussion, local release, stale-cursor rejection and
+  cursorless saved-history recovery.
+- `npm pack --dry-run`: passed with 28 intended package files.
+- `git diff --check`: passed; 19 relative documentation links and eight JSON
+  examples in changed user documentation were checked locally.
+
+Twenty-five lifecycle tests cover release/repeat semantics, saved history, received
+offline output, stale cursors, terminal outcomes, external activity, pending
+submissions/reads/cancellations/resumes, release races, failure cleanup and
+repeated release cycles with deterministic retained-state counts. The first
+15 tests failed before the release method existed, then passed after its
+implementation. Independent review reproduced two uncertainty gaps: submission
+timeouts before the first turn event, and external activity observed before
+disconnect. Five new regressions failed before their fixes and passed afterward;
+additional cases preserve confirmed terminal outcomes and protect registered
+long polls. MCP integration also checks structured/text results and strict
+schema validation. Tests use the process fixture; no live inference, publication
+or claim of bounded backend app-server memory is included. Retention is explicit
+and local to the MCP process; there is no automatic eviction.
