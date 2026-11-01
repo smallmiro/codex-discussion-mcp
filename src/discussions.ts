@@ -304,6 +304,7 @@ export class DiscussionService {
         page = await this.fetchHistoryPage(state.id, turn.id, position.sourceCursor);
         turn.historyPages.set(position.sourceCursor, page);
       } catch (error) {
+        page = turn.historyPages.get(position.sourceCursor);
         if (this.connected || !page) throw error;
       }
     }

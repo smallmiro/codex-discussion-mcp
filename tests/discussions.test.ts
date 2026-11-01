@@ -72,6 +72,16 @@ test('saved history falls back to a received page when its refresh disconnects',
   assert.deepEqual(await service.read({ discussionId }), first);
 });
 
+test('saved history can use a page received by a concurrent read before disconnect', async t => {
+  const { service, discussionId } = await savedHistoryClient(t, undefined, ['--exit-on-second-items-read']);
+  const results = await Promise.all([
+    service.read({ discussionId }),
+    service.read({ discussionId }),
+  ]);
+  assert.deepEqual(results[1], results[0]);
+  assert.ok(results[0]!.messages.some(message => message.text === 'Codex answer'));
+});
+
 test('start returns the chosen settings and retains completion before RPC response', async t => {
   const { service, rpc } = discussionClient(t);
   const started = await service.start({ message: 'early answer', model: 'alpha', effort: 'high' });
