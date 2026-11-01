@@ -20,6 +20,7 @@ interface TurnState {
   live: boolean;
   inlineHistory?: boolean;
   messages: Map<string, PublicMessage>;
+  historyPages: Map<string | undefined, { messages: PublicMessage[]; nextSourceCursor?: string }>;
   syntheticUserId?: string;
   error?: ReturnType<typeof errorResult>;
   cancelRequested: boolean;
@@ -297,13 +298,28 @@ export class DiscussionService {
 
   private async historyPage(state: DiscussionState, turn: TurnState, position: Omit<ReadCursor, 'instance'>, limit: number) {
     if (position.kind !== 'history') throw new DiscussionError('INVALID_CURSOR', 'Expired live cursor. Retry without a cursor.');
+    let page = turn.historyPages.get(position.sourceCursor);
+    if (this.connected) {
+      try {
+        page = await this.fetchHistoryPage(state.id, turn.id, position.sourceCursor);
+        turn.historyPages.set(position.sourceCursor, page);
+      } catch (error) {
+        page = turn.historyPages.get(position.sourceCursor);
+        if (this.connected || !page) throw error;
+      }
+    }
+    if (!page) throw new DiscussionError('CONNECTION_LOST', 'This history page was not received before disconnect. Start a new MCP process to read saved history.');
+    return this.cursors.page(page.messages, position, limit, page.nextSourceCursor);
+  }
+
+  private async fetchHistoryPage(discussionId: string, turnId: string, sourceCursor?: string) {
     const result = record(await this.rpc.request('thread/items/list', {
-      threadId: state.id, turnId: turn.id, sortDirection: 'asc', limit: 50,
-      ...(position.sourceCursor ? { cursor: position.sourceCursor } : {}),
+      threadId: discussionId, turnId, sortDirection: 'asc', limit: 50,
+      ...(sourceCursor ? { cursor: sourceCursor } : {}),
     }));
     if (!Array.isArray(result.data)) throw new DiscussionError('PROTOCOL_ERROR', 'Invalid message history response.');
-    const messages = result.data.map(value => publicItem(record(value).item, turn.id)).filter((item): item is PublicMessage => !!item);
-    return this.cursors.page(messages, position, limit, typeof result.nextCursor === 'string' ? result.nextCursor : undefined);
+    const messages = result.data.map(value => publicItem(record(value).item, turnId)).filter((item): item is PublicMessage => !!item);
+    return { messages, nextSourceCursor: typeof result.nextCursor === 'string' ? result.nextCursor : undefined };
   }
 
   private async readOnlyConfig(cwd: string) {
@@ -408,7 +424,7 @@ export class DiscussionService {
 
   private newTurn(id: string, status: TurnStatus, live: boolean, selection?: Selection): TurnState {
     return { id, status, live, model: selection?.model ?? null, effort: selection?.effort ?? null,
-      messages: new Map(), cancelRequested: false, version: 0, waiters: new Set() };
+      messages: new Map(), historyPages: new Map(), cancelRequested: false, version: 0, waiters: new Set() };
   }
 
   private busy(state: DiscussionState, turnId?: string): never {

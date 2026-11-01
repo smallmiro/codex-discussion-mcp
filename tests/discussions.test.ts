@@ -1,9 +1,86 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { discussionClient } from './helpers.js';
+
+async function savedHistoryClient(t: Parameters<typeof discussionClient>[0], items?: unknown[], args: string[] = []) {
+  const dir = await mkdtemp(join(tmpdir(), 'codex-saved-history-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const stateFile = join(dir, 'state.json');
+  const first = discussionClient(t, [`--state-file=${stateFile}`]);
+  const started = await first.service.start({ message: 'early original' });
+  await first.service.close();
+  if (items) {
+    const saved = JSON.parse(await readFile(stateFile, 'utf8'));
+    saved[started.discussionId].turns[0].items = items;
+    await writeFile(stateFile, JSON.stringify(saved));
+  }
+  return { ...discussionClient(t, [`--state-file=${stateFile}`, ...args]), ...started };
+}
+
+test('saved history remains readable after disconnect', async t => {
+  const { service, rpc, discussionId } = await savedHistoryClient(t);
+  const before = await service.read({ discussionId });
+  await assert.rejects(rpc.request('test/exit', {}));
+  const after = await service.read({ discussionId });
+  assert.deepEqual(after, before);
+  assert.ok(after.messages.some(message => message.text === 'Codex answer'));
+  assert.ok(!JSON.stringify(after).includes('private reasoning'));
+});
+
+test('saved history preserves source pages and chunk offsets after disconnect', async t => {
+  const text = '한🙂'.repeat(25_000);
+  const items = [
+    { id: 'long', type: 'agentMessage', text },
+    { id: 'private', type: 'reasoning', content: ['private reasoning'] },
+    ...Array.from({ length: 52 }, (_, index) => ({ id: `item-${index}`, type: 'agentMessage', text: `Answer ${index}` })),
+  ];
+  const { service, rpc, discussionId } = await savedHistoryClient(t, items);
+  const pages: Array<{ cursor?: string; page: Awaited<ReturnType<typeof service.read>> }> = [];
+  let cursor: string | undefined;
+  do {
+    const page = await service.read({ discussionId, cursor, limit: 1 });
+    pages.push({ cursor, page });
+    cursor = page.nextCursor ?? undefined;
+  } while (cursor);
+  assert.equal(pages.flatMap(({ page }) => page.messages).filter(message => message.id === 'long').map(message => message.text).join(''), text);
+  await assert.rejects(rpc.request('test/exit', {}));
+  for (const saved of pages) {
+    assert.deepEqual(await service.read({ discussionId, cursor: saved.cursor, limit: 1 }), saved.page);
+  }
+  const large = await service.read({ discussionId, limit: 100 });
+  assert.equal(large.messages.reduce((sum, message) => sum + message.text.length, 0), 64_000);
+  assert.ok(large.messages.every(message => message.text.length <= 8000));
+  assert.ok(!JSON.stringify(pages).includes('private reasoning'));
+});
+
+test('saved history does not treat an unfetched source page as complete after disconnect', async t => {
+  const items = Array.from({ length: 52 }, (_, index) => ({ id: `item-${index}`, type: 'agentMessage', text: `Answer ${index}` }));
+  const { service, rpc, discussionId } = await savedHistoryClient(t, items);
+  const first = await service.read({ discussionId, limit: 100 });
+  assert.ok(first.nextCursor);
+  await assert.rejects(rpc.request('test/exit', {}));
+  assert.deepEqual(await service.read({ discussionId, limit: 100 }), first);
+  await assert.rejects(service.read({ discussionId, cursor: first.nextCursor! }), { code: 'CONNECTION_LOST' });
+});
+
+test('saved history falls back to a received page when its refresh disconnects', async t => {
+  const { service, discussionId } = await savedHistoryClient(t, undefined, ['--exit-on-second-items-read']);
+  const first = await service.read({ discussionId });
+  assert.deepEqual(await service.read({ discussionId }), first);
+});
+
+test('saved history can use a page received by a concurrent read before disconnect', async t => {
+  const { service, discussionId } = await savedHistoryClient(t, undefined, ['--exit-on-second-items-read']);
+  const results = await Promise.all([
+    service.read({ discussionId }),
+    service.read({ discussionId }),
+  ]);
+  assert.deepEqual(results[1], results[0]);
+  assert.ok(results[0]!.messages.some(message => message.text === 'Codex answer'));
+});
 
 test('start returns the chosen settings and retains completion before RPC response', async t => {
   const { service, rpc } = discussionClient(t);
