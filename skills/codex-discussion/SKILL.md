@@ -65,12 +65,16 @@ permission change takes effect immediately. The current check is in
 `src/access.ts`. Compare invalidation with checking on every request, and identify
 counterexamples and evidence that would change the recommendation."
 
+## Select model and effort
+
+Call `models_list`. Respect an explicit user selection; otherwise choose using
+the catalog's model and effort descriptions and the question's complexity.
+Use the entry's `model`, not its picker `id`, and a supported effort. Catalog
+presence does not verify inference access. Never silently substitute a model.
+
 ## Run the discussion
 
-1. Call `models_list`. Respect an explicit user selection; otherwise choose using
-   the catalog's model and effort descriptions and the question's complexity.
-   Use the entry's `model`, not its picker `id`, and a supported effort. Catalog
-   presence does not verify inference access. Never silently substitute a model.
+1. Discover and select model and effort as described above.
 2. Call `discussion_start` with the question, absolute `cwd`, and selection.
    Keep its `discussionId` and `turnId`; acceptance is not completion.
 3. Read that turn with `discussion_read`, normally with `waitMs: 20000`. While
