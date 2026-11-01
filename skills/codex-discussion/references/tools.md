@@ -101,6 +101,12 @@ Select the catalog entry's `model` value, not `id`. Supported effort strings com
 from its `supportedReasoningEfforts` entries, using their `reasoningEffort` values.
 There is no fixed model list or universal set of effort levels.
 
+For delegated selection, follow the [skill's selection guidance](../SKILL.md#select-model-and-effort):
+match catalog descriptions to scope, ambiguity, requested depth, and any stated
+speed/depth preference. Preserve explicit settings and briefly report the chosen
+model, effort, and reason before submission without adding a confirmation step.
+This is agent judgment, not server-side routing or a price guarantee.
+
 - On the first turn, omitted choices use the default model and its default effort.
 - On replies, omitted choices inherit the current persisted thread defaults,
   including settings from completed work in another connection. A prior read is

@@ -222,8 +222,12 @@ provide basic usage guidance even without an installed skill.
 ## 5. Understand the discussion flow
 
 1. The calling agent discovers models and supported efforts with `models_list`.
-   It respects an explicit selection or chooses using the returned descriptions.
-   Model IDs and effort strings must not be hardcoded.
+   It preserves explicitly supplied settings and chooses omitted ones using the
+   returned descriptions, task scope, ambiguity, requested depth, and any stated
+   speed/depth preference. It briefly reports the chosen model, effort, and reason
+   in an existing progress update, then proceeds without a confirmation step.
+   Model IDs and effort strings must not be hardcoded. This is agent judgment,
+   not deterministic server routing or proof of model pricing or account access.
 2. `discussion_start` returns a `discussionId` and `turnId`. This means the turn
    was accepted, not that the answer is complete.
 3. The caller uses `discussion_read`, normally with `waitMs: 20000`. While
