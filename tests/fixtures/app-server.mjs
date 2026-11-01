@@ -139,7 +139,7 @@ createInterface({ input: process.stdin }).on('line', async line => {
     }
     notify('turn/started', { threadId: thread.id, turn: { ...turn, items: [] } });
     if (text.startsWith('early')) complete(thread, turn);
-    reply(id, { turn: { id: turn.id, status: 'inProgress', items: [] } });
+    if (!process.argv.includes('--drop-turn-start-response')) reply(id, { turn: { id: turn.id, status: 'inProgress', items: [] } });
     if (text.startsWith('auto')) setTimeout(() => complete(thread, turn), 25);
     if (text.startsWith('fail')) setTimeout(() => complete(thread, turn, 'failed'), 10);
     if (text.startsWith('partial')) setTimeout(() => {

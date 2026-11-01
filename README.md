@@ -299,7 +299,9 @@ Release returns `DISCUSSION_BUSY` while a turn, submission, resume, read, poll,
 cancellation, or another release is pending. While connected, backend inactivity
 must also be confirmed. A `connectionLost` turn has an uncertain backend outcome
 and cannot be released; completed, failed, or interrupted output can be released
-after disconnect. Release never cancels or replays inference.
+after disconnect. A submission that lost its response before any terminal event,
+or observed external activity without confirmed inactivity, also remains
+protected after disconnect. Release never cancels or replays inference.
 
 Old cursors return `INVALID_CURSOR` after release. A cursorless read can resume
 saved history while connected without inference. After disconnect, released

@@ -223,6 +223,8 @@ release, or active backend work return `DISCUSSION_BUSY`. Connected release
 requires confirmed backend inactivity. Turns marked `connectionLost` cannot be
 released because their backend outcome is uncertain. Confirmed completed, failed
 or interrupted output can be released while disconnected.
+An uncertain submission without a terminal event, or observed external activity
+without subsequently confirmed inactivity, also remains protected after disconnect.
 
 After release, old cursors return `INVALID_CURSOR`. Read without a cursor to
 resume saved history while connected; this runs no inference. Disconnected

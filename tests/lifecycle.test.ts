@@ -67,6 +67,65 @@ test('forget rejects active external work and releases after it ends', async t =
   assert.equal((await service.forget({ discussionId: first.discussionId })).forgotten, true);
 });
 
+for (const submissionKind of ['initial start', 'reply']) {
+  test(`forget protects an uncertain ${submissionKind} that timed out before its first event`, async t => {
+    const { service, rpc } = discussionClient(t);
+    const previous = submissionKind === 'reply' ? await service.start({ message: 'early original' }) : undefined;
+    await rpc.request('test/blockNext', { method: 'turn/start' });
+    const submission = previous
+      ? service.reply({ discussionId: previous.discussionId, message: 'hold follow-up' })
+      : service.start({ message: 'hold initial' });
+    const timedOut = assert.rejects(submission, { code: 'RPC_TIMEOUT' });
+    await waiting(rpc);
+    const requests = await rpc.request<Array<{ method: string; params: { threadId?: string } }>>('test/requests', {});
+    const discussionId = requests.filter(request => request.method === 'turn/start').at(-1)!.params.threadId!;
+    await timedOut;
+    await assert.rejects(service.forget({ discussionId }), { code: 'DISCUSSION_BUSY' });
+    if (previous) assert.ok((await service.read({ discussionId })).messages.some(message => message.text === 'Codex answer'));
+  });
+}
+
+for (const observer of ['forget', 'reply', 'read']) {
+  test(`forget protects external activity observed by ${observer} before disconnect`, async t => {
+    const { service, rpc } = discussionClient(t);
+    const first = await service.start({ message: 'early' });
+    await rpc.request('test/externalStart', { threadId: first.discussionId });
+    const observe = observer === 'reply'
+      ? service.reply({ discussionId: first.discussionId, message: 'hold follow-up' })
+      : observer === 'read'
+        ? service.read({ discussionId: first.discussionId })
+        : service.forget({ discussionId: first.discussionId });
+    await assert.rejects(observe, { code: 'DISCUSSION_BUSY' });
+    await assert.rejects(rpc.request('test/exit', {}));
+    await assert.rejects(service.forget({ discussionId: first.discussionId }), { code: 'DISCUSSION_BUSY' });
+  });
+}
+
+test('forget accepts a completed turn observed before its submission response timed out', async t => {
+  const { service, rpc } = discussionClient(t, ['--drop-turn-start-response']);
+  const completed = new Promise<string>(resolve => {
+    const unsubscribe = rpc.onNotification(event => {
+      if (event.method !== 'turn/completed') return;
+      unsubscribe();
+      resolve(String(event.params.threadId));
+    });
+  });
+  const failedSubmission = assert.rejects(service.start({ message: 'early original' }), { code: 'RPC_TIMEOUT' });
+  const discussionId = await completed;
+  await failedSubmission;
+  assert.equal((await service.read({ discussionId })).status, 'completed');
+  assert.equal((await service.forget({ discussionId })).forgotten, true);
+});
+
+test('forget accepts confirmed completion after observing owned activity then disconnecting', async t => {
+  const { service, rpc } = discussionClient(t);
+  const first = await service.start({ message: 'hold' });
+  assert.equal((await service.read({ discussionId: first.discussionId })).status, 'inProgress');
+  await rpc.request('test/complete', { threadId: first.discussionId });
+  await assert.rejects(rpc.request('test/exit', {}));
+  assert.equal((await service.forget({ discussionId: first.discussionId })).forgotten, true);
+});
+
 for (const method of ['thread/read', 'thread/items/list', 'turn/start', 'turn/interrupt']) {
   test(`forget protects a pending ${method} operation`, async t => {
     const { service, rpc } = discussionClient(t);
@@ -105,6 +164,24 @@ test('forget protects a pending saved-discussion load', async t => {
     await rpc.request('test/releaseGate', {});
     await loading;
   }
+  assert.equal((await service.forget({ discussionId: first.discussionId })).forgotten, true);
+});
+
+test('forget protects a registered long poll until cancellation and its read finish', async t => {
+  const { service, rpc } = discussionClient(t);
+  const first = await service.start({ message: 'hold' });
+  const poll = service.read({ discussionId: first.discussionId, waitMs: 20_000 });
+  const retained = service as unknown as { discussions: Map<string, { turns: Map<string, { waiters: Set<unknown> }> }> };
+  const waiters = retained.discussions.get(first.discussionId)!.turns.get(first.turnId)!.waiters;
+  for (let attempt = 0; attempt < 100 && waiters.size === 0; attempt++) await rpc.request('test/echo', {});
+  assert.equal(waiters.size, 1, 'The read must be polling before release is attempted.');
+  try {
+    await assert.rejects(service.forget({ discussionId: first.discussionId }), { code: 'DISCUSSION_BUSY' });
+  } finally {
+    await service.cancel({ discussionId: first.discussionId, turnId: first.turnId });
+    await poll;
+  }
+  assert.equal(waiters.size, 0);
   assert.equal((await service.forget({ discussionId: first.discussionId })).forgotten, true);
 });
 

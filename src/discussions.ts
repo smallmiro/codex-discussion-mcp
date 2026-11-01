@@ -39,6 +39,8 @@ interface DiscussionState {
   cursors: Cursors;
   operations: number;
   forgetting: boolean;
+  unknownSubmission: boolean;
+  foreignActive: boolean;
 }
 export interface StartInput extends Partial<Selection> { message: string; cwd?: string }
 export interface ReplyInput extends Partial<Selection> { discussionId: string; message: string }
@@ -84,7 +86,10 @@ export class DiscussionService {
     }));
     const thread = record(result.thread);
     if (typeof thread.id !== 'string') throw new DiscussionError('PROTOCOL_ERROR', 'Missing thread ID in app-server response.');
-    const state: DiscussionState = { id: thread.id, cwd, ...selection, turns: new Map(), submitting: true, cursors: new Cursors(), operations: 0, forgetting: false };
+    const state: DiscussionState = {
+      id: thread.id, cwd, ...selection, turns: new Map(), submitting: true,
+      cursors: new Cursors(), operations: 0, forgetting: false, unknownSubmission: false, foreignActive: false,
+    };
     this.discussions.set(state.id, state);
     return this.submit(state, input.message, selection);
   }
@@ -99,6 +104,7 @@ export class DiscussionService {
       try {
         const metadata = record(await this.rpc.request('thread/read', { threadId: state.id, includeTurns: false }));
         const thread = record(metadata.thread);
+        this.observeActivity(state, thread);
         if (record(thread.status).type === 'active') this.busy(state, active?.id);
         this.reconcileDefaults(state, thread);
         if (!state.effort && !input.effort && (!input.model || input.model === state.model)) {
@@ -164,7 +170,9 @@ export class DiscussionService {
     try {
       if (this.connected) {
         const metadata = record(await this.rpc.request('thread/read', { threadId: state.id, includeTurns: false }));
-        if (record(record(metadata.thread).status).type !== 'idle') {
+        const thread = record(metadata.thread);
+        this.observeActivity(state, thread);
+        if (record(thread.status).type !== 'idle') {
           throw new DiscussionError('DISCUSSION_BUSY', 'Backend inactivity could not be confirmed; retained state was not forgotten.', { discussionId: state.id });
         }
       }
@@ -179,7 +187,15 @@ export class DiscussionService {
 
   private requireInactive(state: DiscussionState) {
     const active = Array.from(state.turns.values()).find(turn => turn.status === 'inProgress' || turn.status === 'connectionLost');
-    if (state.submitting || state.operations || active) this.busy(state, active?.id);
+    if (state.submitting || state.operations || active || state.unknownSubmission || (!this.connected && state.foreignActive)) {
+      this.busy(state, active?.id);
+    }
+  }
+
+  private observeActivity(state: DiscussionState, thread: Record<string, unknown>, ownedActiveId?: string) {
+    const status = record(thread.status).type;
+    if (status === 'idle') state.foreignActive = false;
+    else if (status === 'active' && !ownedActiveId) state.foreignActive = true;
   }
 
   private async withDiscussion<T>(id: string, operation: (state: DiscussionState) => Promise<T>): Promise<T> {
@@ -194,6 +210,7 @@ export class DiscussionService {
   }
 
   private async submit(state: DiscussionState, message: string, selection: Selection) {
+    const previousTurnId = state.latestTurnId;
     state.pendingSelection = selection;
     try {
       const result = record(await this.rpc.request('turn/start', {
@@ -217,6 +234,14 @@ export class DiscussionService {
       }
       return this.summary(state, turn);
     } catch (error) {
+      const observed = state.latestTurnId !== previousTurnId ? state.turns.get(state.latestTurnId ?? '') : undefined;
+      const terminalObserved = observed && ['completed', 'failed', 'interrupted'].includes(observed.status);
+      const outcomeUnknown = !this.connected || (error instanceof DiscussionError
+        && (error.details?.outcomeUnknown === true || error.code === 'PROTOCOL_ERROR'));
+      if (!terminalObserved && outcomeUnknown) {
+        // The backend may have accepted a submission even without emitting a turn ID.
+        state.unknownSubmission = true;
+      }
       if (error instanceof DiscussionError) {
         throw new DiscussionError(error.code, error.message, { ...error.details, discussionId: state.id, ...(state.latestTurnId ? { turnId: state.latestTurnId } : {}) });
       }
@@ -252,7 +277,10 @@ export class DiscussionService {
     const model = result.model ?? resumed.model;
     const effort = result.reasoningEffort ?? resumed.reasoningEffort;
     if (typeof model !== 'string') throw new DiscussionError('MODEL_REQUIRED', 'Cannot recover the saved discussion model.');
-    const state: DiscussionState = { id, cwd, model, effort: typeof effort === 'string' ? effort : undefined, turns: new Map(), submitting: false, cursors: new Cursors(), operations: 0, forgetting: false };
+    const state: DiscussionState = {
+      id, cwd, model, effort: typeof effort === 'string' ? effort : undefined, turns: new Map(), submitting: false,
+      cursors: new Cursors(), operations: 0, forgetting: false, unknownSubmission: false, foreignActive: false,
+    };
     this.discussions.set(id, state);
     return state;
   }
@@ -295,6 +323,7 @@ export class DiscussionService {
     try {
       const metadata = record(await this.rpc.request('thread/read', { threadId: state.id, includeTurns: false }));
       const thread = record(metadata.thread);
+      this.observeActivity(state, thread, ownedActiveId);
       let latest: Record<string, unknown>;
       let inline = false;
       try {
@@ -321,6 +350,7 @@ export class DiscussionService {
         inline = true;
       }
       if (record(thread.status).type === 'active' && (typeof latest.id !== 'string' || latest.id !== ownedActiveId)) {
+        state.foreignActive = true;
         this.busy(state, typeof latest.id === 'string' ? latest.id : undefined);
       }
       if (typeof latest.id === 'string') {
