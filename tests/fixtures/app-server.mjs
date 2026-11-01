@@ -7,6 +7,7 @@ const waiting = new Map();
 const requests = [];
 const readErrors = new Map();
 let armedReadNotification;
+let itemsReads = 0;
 const pidFile = process.argv.find(arg => arg.startsWith('--pid-file='))?.slice('--pid-file='.length);
 if (pidFile) writeFileSync(pidFile, String(process.pid));
 const stateFile = process.argv.find(arg => arg.startsWith('--state-file='))?.slice('--state-file='.length);
@@ -175,6 +176,7 @@ createInterface({ input: process.stdin }).on('line', async line => {
     const data = turns.slice(start, start + (params.limit ?? 100)).map(turn => ({ ...turn, items: [] }));
     reply(id, { data, nextCursor: start + data.length < turns.length ? String(start + data.length) : null });
   } else if (method === 'thread/items/list') {
+    if (++itemsReads === 2 && process.argv.includes('--exit-on-second-items-read')) process.exit(2);
     const thread = threads[params.threadId];
     const turn = thread.turns.find(turn => turn.id === params.turnId);
     const entries = [...(turn?.items ?? []), { id: 'secret', type: 'reasoning', content: ['private reasoning'], summary: ['private'] }].map(item => ({ turnId: params.turnId, item }));

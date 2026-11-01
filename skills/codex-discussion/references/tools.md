@@ -164,6 +164,12 @@ later through the same Codex storage.
 
 ## Busy turns, cancellation, and reconnecting
 
+After an app-server disconnect, already-received local output and fetched pages
+of saved history remain readable in the same MCP process. Keep following their
+cursors normally. A history source page that was never fetched fails with
+`CONNECTION_LOST`; this is not evidence that the history is complete. Reconnect
+in a new MCP process to fetch missing saved history, without replaying inference.
+
 One discussion allows one active or pending submission. For `DISCUSSION_BUSY`,
 read the active turn or request cancellation if the user wants it stopped.
 Different discussions can run independently. Concurrently changing the same

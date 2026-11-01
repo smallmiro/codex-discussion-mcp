@@ -20,6 +20,7 @@ interface TurnState {
   live: boolean;
   inlineHistory?: boolean;
   messages: Map<string, PublicMessage>;
+  historyPages: Map<string | undefined, { messages: PublicMessage[]; nextSourceCursor?: string }>;
   syntheticUserId?: string;
   error?: ReturnType<typeof errorResult>;
   cancelRequested: boolean;
@@ -297,7 +298,16 @@ export class DiscussionService {
 
   private async historyPage(state: DiscussionState, turn: TurnState, position: Omit<ReadCursor, 'instance'>, limit: number) {
     if (position.kind !== 'history') throw new DiscussionError('INVALID_CURSOR', 'Expired live cursor. Retry without a cursor.');
-    const page = await this.fetchHistoryPage(state.id, turn.id, position.sourceCursor);
+    let page = turn.historyPages.get(position.sourceCursor);
+    if (this.connected) {
+      try {
+        page = await this.fetchHistoryPage(state.id, turn.id, position.sourceCursor);
+        turn.historyPages.set(position.sourceCursor, page);
+      } catch (error) {
+        if (this.connected || !page) throw error;
+      }
+    }
+    if (!page) throw new DiscussionError('CONNECTION_LOST', 'This history page was not received before disconnect. Start a new MCP process to read saved history.');
     return this.cursors.page(page.messages, position, limit, page.nextSourceCursor);
   }
 
@@ -413,7 +423,7 @@ export class DiscussionService {
 
   private newTurn(id: string, status: TurnStatus, live: boolean, selection?: Selection): TurnState {
     return { id, status, live, model: selection?.model ?? null, effort: selection?.effort ?? null,
-      messages: new Map(), cancelRequested: false, version: 0, waiters: new Set() };
+      messages: new Map(), historyPages: new Map(), cancelRequested: false, version: 0, waiters: new Set() };
   }
 
   private busy(state: DiscussionState, turnId?: string): never {
