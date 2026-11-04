@@ -2,16 +2,16 @@
 
 See [CHANGELOG.md](../CHANGELOG.md) for versioned changes and the release records for
 [0.1.0](releases/0.1.0.md), [0.1.1](releases/0.1.1.md),
-[0.1.2](releases/0.1.2.md), [0.1.3](releases/0.1.3.md), and
-[0.1.4](releases/0.1.4.md).
+[0.1.2](releases/0.1.2.md), [0.1.3](releases/0.1.3.md),
+[0.1.4](releases/0.1.4.md), and [0.1.5](releases/0.1.5.md).
 Check the public registry for the published version:
 
 ```bash
 npm view @mirolab/codex-discussion-mcp version --registry=https://registry.npmjs.org/
 ```
 
-Published versions cannot be republished. All five versions used the existing
-bootstrap token. The `v0.1.1`, `v0.1.2`, `v0.1.3`, and `v0.1.4` OIDC runs were rejected with `E404`;
+Published versions cannot be republished. All six versions used the existing
+bootstrap token. The `v0.1.1` through `v0.1.5` OIDC runs were rejected with `E404`;
 actual OIDC publication remains unverified. Configure the OIDC connection below
 before relying on Trusted Publishing for another version.
 
