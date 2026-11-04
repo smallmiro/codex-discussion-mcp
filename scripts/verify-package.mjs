@@ -13,6 +13,7 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const temp = await mkdtemp(join(tmpdir(), 'codex-discussion-package-'));
 const metadata = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
 const userFiles = [
+  'CHANGELOG.md',
   'docs/skills.md',
   'docs/remote-app-server.md',
   'scripts/setup-remote-app-server.sh',

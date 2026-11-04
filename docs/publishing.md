@@ -1,6 +1,6 @@
 # Public npm publishing through GitHub Actions
 
-The current public release is `0.1.4`. See the release records for
+See [CHANGELOG.md](../CHANGELOG.md) for versioned changes and the release records for
 [0.1.0](releases/0.1.0.md), [0.1.1](releases/0.1.1.md),
 [0.1.2](releases/0.1.2.md), [0.1.3](releases/0.1.3.md), and
 [0.1.4](releases/0.1.4.md).
@@ -138,15 +138,28 @@ If it expires, delete it and add it again.
 
 ## Publishing subsequent versions
 
+For every npm publication, add a dated entry to [CHANGELOG.md](../CHANGELOG.md)
+for the exact new version. Describe changes since the previous release, keep the
+changelog in the package, and include the entry in the GitHub Release notes.
+Update the lockfile and version-pinned installation examples with the version.
+After publication, record the workflow, artifact integrity, and fresh-installation
+checks in `docs/releases/`.
+
 Commit the version change and tag to the repository, then publish a GitHub
 Release using a **`v` tag matching the package version**. Derive the release tag
 from the new version instead of reusing an already published version's tag.
 
 ```bash
-npm version patch
-git push origin main --follow-tags
+npm version patch --no-git-tag-version
+# Update CHANGELOG.md and pinned examples, then validate the release candidate.
+npm run check
+npm run verify:package
+git add package.json package-lock.json CHANGELOG.md README.md
+git commit -m "chore: prepare npm release"
 release_tag="v$(node -p 'require("./package.json").version')"
-gh release create "$release_tag" --repo smallmiro/codex-discussion-mcp --generate-notes
+git tag "$release_tag"
+git push origin main "$release_tag"
+gh release create "$release_tag" --repo smallmiro/codex-discussion-mcp --notes-file CHANGELOG.md
 ```
 
 The workflow checks out the tag, validates the name and version, runs tests,

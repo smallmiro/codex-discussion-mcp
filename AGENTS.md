@@ -35,6 +35,7 @@ agent controls the discussion and chooses a model and reasoning effort.
 | `docs/skills.md` | Human-readable skill installation, invocation, maintenance and troubleshooting manual |
 | `docs/verification.md` | Recorded validation results and known limits |
 | `docs/releases/` | Historical release records and artifact identities |
+| `CHANGELOG.md` | User-facing changes for every npm version |
 | `docs/superpowers/` | Original design and completed implementation plan |
 
 Read the relevant source and tests before changing behavior. Historical plans
@@ -147,6 +148,11 @@ for prose-only changes.
 - Publishing must be part of the requested task. A documentation edit alone does
   not require a version bump or npm publication. Published versions are immutable;
   never try to overwrite `0.1.0` or another existing version.
+- Every npm publication must include a dated `CHANGELOG.md` entry for the exact
+  package version, describing user-visible changes since the previous release.
+  Ship the changelog in the npm package and include that version's entry in the
+  GitHub Release notes. Update package metadata, lockfile, and pinned examples
+  together before tagging; record publication verification in `docs/releases/`.
 - Follow `docs/publishing.md` for account setup and release procedures. Verify the
   published version, artifact integrity and a fresh installation before reporting
   a release as complete.

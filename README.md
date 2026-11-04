@@ -52,7 +52,7 @@ You can also run it without a global installation. Register this command in your
 MCP configuration:
 
 ```bash
-npx -y @mirolab/codex-discussion-mcp@0.1.4
+npx -y @mirolab/codex-discussion-mcp@0.1.5
 ```
 
 This command waits for requests as a stdio MCP server. You do not type questions
@@ -113,6 +113,7 @@ configuration, restarts itself, runs inference for checks, or interrupts an
 active discussion. Finish active work before reconnecting. Separately copied
 skills must be [refreshed separately](docs/skills.md#6-update-or-remove-the-skill);
 updating npm does not overwrite the copy or its customizations. See
+[changelog](CHANGELOG.md) and
 [release notes](https://github.com/smallmiro/codex-discussion-mcp/releases).
 
 ## Register with Claude Code
@@ -128,7 +129,7 @@ Register without a global installation:
 
 ```bash
 claude mcp add --transport stdio --scope user codex-discussion -- \
-  npx -y @mirolab/codex-discussion-mcp@0.1.4
+  npx -y @mirolab/codex-discussion-mcp@0.1.5
 ```
 
 To share the configuration at the project level, replace `--scope user` with
@@ -149,7 +150,7 @@ configuration file.
   "mcpServers": {
     "codex-discussion": {
       "command": "npx",
-      "args": ["-y", "@mirolab/codex-discussion-mcp@0.1.4"]
+      "args": ["-y", "@mirolab/codex-discussion-mcp@0.1.5"]
     }
   }
 }
