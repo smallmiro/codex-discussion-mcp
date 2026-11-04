@@ -184,6 +184,10 @@ variable, then `codex` on PATH. For advanced setups, repeat `--codex-arg` to rep
 the default app-server launch arguments. Use `=` for values beginning with `-`,
 such as `--codex-arg=--some-option`.
 
+To create a transport token and launch a separate Codex app-server host, use the
+[remote app-server setup script and guide](docs/remote-app-server.md). The MCP
+package's connection currently remains local stdio.
+
 ## Ask your agent
 
 For a reusable user guide, install the optional

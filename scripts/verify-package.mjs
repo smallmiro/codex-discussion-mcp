@@ -12,8 +12,10 @@ const run = promisify(execFile);
 const root = fileURLToPath(new URL('..', import.meta.url));
 const temp = await mkdtemp(join(tmpdir(), 'codex-discussion-package-'));
 const metadata = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
-const guideFiles = [
+const userFiles = [
   'docs/skills.md',
+  'docs/remote-app-server.md',
+  'scripts/setup-remote-app-server.sh',
   'skills/codex-discussion/SKILL.md',
   'skills/codex-discussion/references/setup.md',
   'skills/codex-discussion/references/tools.md',
@@ -31,7 +33,7 @@ try {
     const paths = info.files.map(file => file.path);
     assert.ok(paths.includes('dist/index.js'));
     assert.ok(paths.includes('LICENSE'));
-    for (const path of guideFiles) assert.ok(paths.includes(path), `Missing packaged guide file: ${path}`);
+    for (const path of userFiles) assert.ok(paths.includes(path), `Missing packaged user file: ${path}`);
     assert.ok(!paths.some(path => /^(src|tests|node_modules|\.github|\.superpowers|\.env)(\/|$)/.test(path)));
     tarball = join(temp, info.filename);
   }
@@ -40,12 +42,16 @@ try {
   const installed = JSON.parse(await readFile(join(temp, 'node_modules', '@mirolab', 'codex-discussion-mcp', 'package.json'), 'utf8'));
   assert.equal(installed.name, metadata.name);
   assert.equal(installed.version, metadata.version);
-  for (const path of guideFiles) {
+  for (const path of userFiles) {
     assert.equal(
       await readFile(join(temp, 'node_modules', '@mirolab', 'codex-discussion-mcp', path), 'utf8'),
       await readFile(join(root, path), 'utf8'),
-      `Installed guide differs from checkout: ${path}`,
+      `Installed user file differs from checkout: ${path}`,
     );
+  }
+  if (process.platform !== 'win32') {
+    const remoteHelp = await run('bash', [join(temp, 'node_modules', '@mirolab', 'codex-discussion-mcp', 'scripts', 'setup-remote-app-server.sh'), '--help'], { cwd: temp });
+    assert.match(remoteHelp.stdout, /--token-file/);
   }
   const help = await run(executable, ['--help'], { cwd: temp });
   assert.match(help.stdout, /codex-discussion-mcp/);

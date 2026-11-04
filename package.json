@@ -31,6 +31,8 @@
     "LICENSE",
     "docs/publishing.md",
     "docs/skills.md",
+    "docs/remote-app-server.md",
+    "scripts/setup-remote-app-server.sh",
     "skills"
   ],
   "engines": {
